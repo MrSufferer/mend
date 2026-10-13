@@ -16,6 +16,6 @@ export async function handle(action:()=>Promise<Response>) {
     if (error instanceof ApiError) return json({error:error.code, message:error.message},error.status);
     // Do not log credentials, signed URLs, request bodies, or document content.
     console.error('Mend API operation failed', error instanceof Error ? error.name : 'UnknownError');
-    return json({error:'temporarily_unavailable',message:'Retry with the same capability and idempotency key; the order remains recoverable.'},503);
+    return json({error:'temporarily_unavailable',message:'Mend is temporarily unavailable. Retry; existing orders remain recoverable.'},503);
   }
 }

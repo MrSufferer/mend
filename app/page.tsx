@@ -1,2 +1,2 @@
-import { redirect } from 'next/navigation';
-export default function Page() { redirect('/prototype/mend'); }
+import Live from './live';
+export default function Page(){return <Live/>;}
