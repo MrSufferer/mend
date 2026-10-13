@@ -1,4 +1,5 @@
 import { pgTable, text, integer, timestamp, jsonb, uuid, uniqueIndex } from 'drizzle-orm/pg-core';
+import type {PaymentPayload,PaymentRequirements} from '@x402/core/types';
 import type { PurchasedTerms, RecoveryPolicy } from './terms';
 export const policies = pgTable('recovery_policies', {
   id:uuid('id').primaryKey(), createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
@@ -13,7 +14,7 @@ export const submissions = pgTable('submissions', {
 export const orders = pgTable('orders', {
   id:uuid('id').primaryKey(), submissionId:uuid('submission_id').references(()=>submissions.id).notNull().unique(),
   capabilityHash:text('capability_hash').notNull(), ownerWallet:text('owner_wallet'),
-  status:text('status').notNull().default('unpaid'), terms:jsonb('terms').$type<PurchasedTerms>().notNull(),
+  status:text('status').notNull().default('unpaid'), paidAt:timestamp('paid_at',{withTimezone:true}), paymentTransaction:text('payment_transaction').unique(), paymentReceipt:jsonb('payment_receipt').$type<{status:'success',blockNumber:string,blockHash:string,amountAtomic:string,decimals:6,gasUsed:string,effectiveGasPrice:string}>(), payerWallet:text('payer_wallet'), terms:jsonb('terms').$type<PurchasedTerms>().notNull(),
   createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(), uploadCreatedAt:timestamp('upload_created_at',{withTimezone:true}).notNull(),
   uploadExpiresAt:timestamp('upload_expires_at',{withTimezone:true}).notNull(), uploadKey:text('upload_key').notNull(),
   uploadSize:integer('upload_size').notNull(), uploadSha256:text('upload_sha256').notNull(), pages:integer('pages').notNull(),
@@ -30,3 +31,11 @@ export const authSessions = pgTable('auth_sessions', {
   createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
   expiresAt:timestamp('expires_at',{withTimezone:true}).notNull(), revokedAt:timestamp('revoked_at',{withTimezone:true}),
 });
+
+export const paymentAttempts=pgTable('payment_attempts',{
+ orderId:uuid('order_id').primaryKey().references(()=>orders.id), payer:text('payer').notNull(), nonce:text('nonce').notNull(),
+ payload:jsonb('payload').$type<PaymentPayload>().notNull(), requirements:jsonb('requirements').$type<PaymentRequirements>().notNull(),
+ startBlock:text('start_block').notNull(), scanBlock:text('scan_block').notNull(), transaction:text('transaction').unique(),
+ createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(), submittedAt:timestamp('submitted_at',{withTimezone:true}),
+},t=>[uniqueIndex('payment_authorization_unique').on(t.payer,t.nonce)]);
+export type PaymentAttempt=typeof paymentAttempts.$inferSelect;

@@ -22,6 +22,20 @@
       "when": 1791905357004,
       "tag": "0002_wandering_the_executioner",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791911486389,
+      "tag": "0003_square_blue_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791911817379,
+      "tag": "0004_flimsy_tomas",
+      "breakpoints": true
     }
   ]
 }

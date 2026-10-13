@@ -171,3 +171,7 @@ The published parent specification is [GitHub #19](https://github.com/MrSufferer
 ## Implementation authorization — 2026-10-13
 
 The user resumed implementation for GitHub ticket #2 and then the next ticket in the approved list, #3. This supersedes historical implementation holds for those two slices only. Issue #1 is closed with verified provisioning access. The remaining tickets and parent specification are not completed by this work. The approved design, authority boundaries, and testing seams above remain the implementation baseline.
+
+## Implementation authorization — 2026-10-14
+
+The user authorized continuing all remaining approved tickets #4–#18 until complete. This supersedes the earlier two-ticket scope; historical implementation evidence remains limited to the slices actually verified. The approved design, authority boundaries, and testing seams remain the baseline.
