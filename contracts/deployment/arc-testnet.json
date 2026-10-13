@@ -1,0 +1,130 @@
+{
+  "chainId": 5042002,
+  "network": "Arc testnet",
+  "token": "0x3600000000000000000000000000000000000000",
+  "tokenDecimals": 6,
+  "nativeDecimals": 18,
+  "address": "0x76b29d6a6eab98b32415b8a6adf5d587d991e082",
+  "explorer": "https://explorer.testnet.arc.io/address/0x76b29d6a6eab98b32415b8a6adf5d587d991e082",
+  "compiler": "0.8.30+commit.73712a01",
+  "evmVersion": "prague",
+  "optimizer": {
+    "enabled": true,
+    "runs": 200
+  },
+  "arcFoundryRelease": "v0.8.0-2",
+  "openZeppelinVersion": "5.4.0",
+  "constructorArguments": [
+    "0x3600000000000000000000000000000000000000",
+    "0xd6a270Fc56B3b50DA89879DFC8dcE529F8419958",
+    "0xf313A44E910D6b7164CD587be1aeeF2123E5CB6c",
+    "0xc6c5084DC5baF8634B2285AF448d7BF524826522"
+  ],
+  "roles": {
+    "administrator": "0xd6a270Fc56B3b50DA89879DFC8dcE529F8419958",
+    "registrar": "0xf313A44E910D6b7164CD587be1aeeF2123E5CB6c",
+    "worker": "0xc6c5084DC5baF8634B2285AF448d7BF524826522"
+  },
+  "dailyLimit": "10000000",
+  "unit": "test USDC (6-decimal ERC-20 units)",
+  "deployment": {
+    "hash": "0x35725ca74ecc3451080d2f38cc02b7bbb9f7a0d38b6a38945caaa52b826be009",
+    "status": "success",
+    "blockNumber": "67022270",
+    "gasUsed": "745795",
+    "effectiveGasPrice": "21000000000",
+    "explorer": "https://explorer.testnet.arc.io/tx/0x35725ca74ecc3451080d2f38cc02b7bbb9f7a0d38b6a38945caaa52b826be009"
+  },
+  "exercise": [
+    {
+      "command": "fund",
+      "orderId": "0xddb027df1a5b97a960999494c164343612d4fcf043d914b5a8bb2682a1438e95",
+      "payer": "0xaB53daf108fCBB2650270FB69BA86BF75CFb5438",
+      "transaction": {
+        "hash": "0xb62f618db078a68e311005f8b0457e3afe0b5c751162539ae16b2df07cccaf47",
+        "status": "success",
+        "blockNumber": "67022434",
+        "gasUsed": "48950",
+        "effectiveGasPrice": "21000000000",
+        "explorer": "https://explorer.testnet.arc.io/tx/0xb62f618db078a68e311005f8b0457e3afe0b5c751162539ae16b2df07cccaf47"
+      }
+    },
+    {
+      "command": "register",
+      "orderId": "0xddb027df1a5b97a960999494c164343612d4fcf043d914b5a8bb2682a1438e95",
+      "payer": "0xaB53daf108fCBB2650270FB69BA86BF75CFb5438",
+      "transaction": {
+        "hash": "0xbf5c3c126b39b05a358ec3f25c6f2d94bd7c66f797790c3d3da305bd470dd1d4",
+        "status": "success",
+        "blockNumber": "67022464",
+        "gasUsed": "73773",
+        "effectiveGasPrice": "21000000000",
+        "explorer": "https://explorer.testnet.arc.io/tx/0xbf5c3c126b39b05a358ec3f25c6f2d94bd7c66f797790c3d3da305bd470dd1d4"
+      }
+    },
+    {
+      "command": "refund",
+      "orderId": "0xddb027df1a5b97a960999494c164343612d4fcf043d914b5a8bb2682a1438e95",
+      "payer": "0xaB53daf108fCBB2650270FB69BA86BF75CFb5438",
+      "transaction": {
+        "hash": "0x58fa5813ffcaa8299c8b75f6b27c4afac081ea956395ba2eb3c6dc11a7d67a4e",
+        "status": "success",
+        "blockNumber": "67022565",
+        "gasUsed": "111107",
+        "effectiveGasPrice": "21000000000",
+        "explorer": "https://explorer.testnet.arc.io/tx/0x58fa5813ffcaa8299c8b75f6b27c4afac081ea956395ba2eb3c6dc11a7d67a4e"
+      }
+    }
+  ],
+  "remainingReserve": "9000000",
+  "remainingDailyAllowance": "9000000",
+  "verification": {
+    "status": "Pass - Verified",
+    "verifier": "Blockscout",
+    "url": "https://explorer.testnet.arc.io/address/0x76b29d6a6eab98b32415b8a6adf5d587d991e082?tab=contract",
+    "guid": "76b29d6a6eab98b32415b8a6adf5d587d991e0826ace66f3"
+  },
+  "remainingReserveNative": "9000000000000000000",
+  "readOnlyChecks": {
+    "blockNumber": "67022700",
+    "checks": [
+      {
+        "name": "worker cannot register entitlement",
+        "status": "pass",
+        "error": "AccessControlUnauthorizedAccount"
+      },
+      {
+        "name": "worker cannot grant registrar authority",
+        "status": "pass",
+        "error": "AccessControlUnauthorizedAccount"
+      },
+      {
+        "name": "registrar cannot refund",
+        "status": "pass",
+        "error": "AccessControlUnauthorizedAccount"
+      },
+      {
+        "name": "wrong payer rejected",
+        "status": "pass",
+        "error": "InvalidEntitlement"
+      },
+      {
+        "name": "wrong amount rejected",
+        "status": "pass",
+        "error": "InvalidEntitlement"
+      },
+      {
+        "name": "refund replay rejected",
+        "status": "pass",
+        "error": "AlreadyRefunded"
+      }
+    ],
+    "nativeAndErc20SameUnderlyingFunds": true
+  },
+  "staticAnalysis": {
+    "tool": "Slither",
+    "version": "0.11.5",
+    "success": true,
+    "findings": 0
+  }
+}
