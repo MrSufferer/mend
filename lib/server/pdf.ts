@@ -1,5 +1,8 @@
 import { ApiError } from './http';
 export async function validatePdf(bytes:Uint8Array) {
+  // Load the Node worker through a literal import so deployment tracing sees it.
+  // PDF.js installs its exported handler for its in-process Node worker.
+  await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
   const { getDocument, OPS } = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const task = getDocument({data:new Uint8Array(bytes),disableFontFace:true,stopAtErrors:true,verbosity:0});
   try {
@@ -25,6 +28,10 @@ export async function validatePdf(bytes:Uint8Array) {
   } catch(error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof Error && error.name === 'PasswordException') throw new ApiError(422,'encrypted_pdf','Encrypted documents are unsupported.');
-    throw new ApiError(422,'invalid_pdf','The document is not a valid supported PDF.');
+    if (error instanceof Error && ['InvalidPDFException','FormatError','UnknownErrorException'].includes(error.name))
+      throw new ApiError(422,'invalid_pdf','The document is not a valid supported PDF.');
+    // Infrastructure/worker failures do not invalidate a customer's document.
+    // Preserve the staged upload so the original request can be retried.
+    throw error;
   } finally {await task.destroy();}
 }

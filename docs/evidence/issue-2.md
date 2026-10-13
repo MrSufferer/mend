@@ -12,3 +12,9 @@
 - Staging purge command: PASS (no eligible expired objects in the first invocation). Full scheduled retention and independent output clock are ticket #15, not established by this manual command.
 
 Local HTTP execution with real providers is established. Deployed Vercel HTTP evidence is a separate integration-branch check; this report does not claim payment, wallet authentication, Neon processing Functions, or model integration.
+
+## Hosted artifact follow-through
+
+The first Vercel Preview of integration `883f7c6` exposed a deployment-only PDF.js packaging defect: hosted lifecycle checks reported seven failures, one pass and one policy-fixture skip; valid and encrypted documents incorrectly returned `invalid_pdf`. The local production route trace contained `pdfjs-dist/legacy/build/pdf.mjs` but omitted the library's dynamically imported `pdf.worker.mjs`, so local execution with a full node_modules tree had concealed the missing runtime file.
+
+The fix loads the worker through a literal module import and explicitly includes it in Next.js output tracing for the finalization route. The rebuilt `complete/route.js.nft.json` now contains the worker and its traced path resolves to a file. Infrastructure/worker load errors return retryable 503 rather than rejecting the customer's staged document; genuine unsupported/invalid document errors retain 422. Production build passed and all nine real-provider HTTP lifecycle tests passed again (22.5 seconds). Hosted redeployment verification remains an integration-branch acceptance check.
