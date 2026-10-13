@@ -1,0 +1,126 @@
+{
+  "generated_at": "2026-10-13",
+  "public_configuration": {
+    "MERCHANT_ADDRESS": "0x60a34E5d6DAE6226BC0788BBf5f5bc9103558896",
+    "ADMIN_ADDRESS": "0xd6a270Fc56B3b50DA89879DFC8dcE529F8419958",
+    "REGISTRAR_ADDRESS": "0xf313A44E910D6b7164CD587be1aeeF2123E5CB6c",
+    "RECOVERY_WORKER_ADDRESS": "0xc6c5084DC5baF8634B2285AF448d7BF524826522",
+    "TEST_PURCHASER_ADDRESS": "0xaB53daf108fCBB2650270FB69BA86BF75CFb5438",
+    "OPERATOR_WALLET_ADDRESS": "0xc24bfDBAd9dDfaCEf8e9504EF16D341F0544911e",
+    "ARC_CHAIN_ID": "5042002",
+    "X402_FACILITATOR_URL": "https://facilitator.arcusnetwork.co",
+    "UPLOAD_BUCKET": "mend-uploads",
+    "OUTPUT_BUCKET": "mend-outputs"
+  },
+  "wallet_funding": "PASS: all six wallets have positive Arc native USDC balances",
+  "neon": {
+    "project_id": "morning-bar-76751353",
+    "organization_id": "org-aged-hall-95337659",
+    "region": "aws-ap-southeast-1",
+    "branch_id": "br-patient-wave-azrhhl2v",
+    "branch_name": "main"
+  },
+  "github_repository_access": "ADMIN",
+  "vercel_identity": "gadillacer",
+  "canteen_chain_id_verified": 5042002,
+  "secret_directory": ".env.provisioning",
+  "secrets_printed": false,
+  "ai_gateway": "Not selected: direct model-provider access through AI SDK approved; Neon stays Free",
+  "vercel_project": "https://vercel.com/gadillacers-projects/mend",
+  "facilitator": "PASS: public /supported returned HTTP 200 without credentials; exact and batch-settlement advertise Arc testnet eip155:5042002",
+  "storage": {
+    "mend-uploads": "private",
+    "mend-outputs": "private"
+  },
+  "database_roles": {
+    "roles": [
+      "mend_web",
+      "mend_conversion",
+      "mend_registrar",
+      "mend_worker"
+    ],
+    "connections": "verified",
+    "table_grants": "PENDING IMPLEMENTATION: no application table privileges granted",
+    "schema_creation_by_public": false
+  },
+  "vercel_environment": {
+    "configured_names": [
+      "DATABASE_URL",
+      "DATABASE_URL_UNPOOLED",
+      "AWS_ENDPOINT_URL_S3",
+      "AWS_REGION",
+      "AWS_ACCESS_KEY_ID",
+      "AWS_SECRET_ACCESS_KEY",
+      "SESSION_SECRET",
+      "OPERATOR_WALLET_ADDRESS",
+      "MERCHANT_ADDRESS",
+      "ARC_CHAIN_ID",
+      "X402_FACILITATOR_URL",
+      "UPLOAD_BUCKET",
+      "OUTPUT_BUCKET"
+    ],
+    "targets": [
+      "production",
+      "development"
+    ],
+    "signer_keys_uploaded": false,
+    "deployed": false,
+    "readback_verified": true
+  },
+  "storage_credentials": {
+    "web": "read/write",
+    "conversion": "read/write",
+    "worker": "read only",
+    "registrar": "none"
+  },
+  "storage_verification": {
+    "mend-uploads": "PASS: authenticated write/read, anonymous access denied, worker write denied, probe deleted",
+    "mend-outputs": "PASS: authenticated write/read, anonymous access denied, worker write denied, probe deleted"
+  },
+  "functions": "Management access verified; no Functions deployed; runtime isolation and cancellation pending implementation",
+  "wallet_balances_native_base_units": {
+    "MERCHANT_ADDRESS": "20000000000000000000",
+    "ADMIN_ADDRESS": "20000000000000000000",
+    "REGISTRAR_ADDRESS": "20000000000000000000",
+    "RECOVERY_WORKER_ADDRESS": "20000000000000000000",
+    "TEST_PURCHASER_ADDRESS": "20000000000000000000",
+    "OPERATOR_WALLET_ADDRESS": "20000000000000000000"
+  },
+  "wallet_custody": "Local owner-only raw testnet private-key files; administrator stays local and isolated; encrypted-keystore migration is a recommended improvement",
+  "wallet_balance_checked_at": "2026-10-13T14:26:53.239321+00:00",
+  "operator_import": "User reports operator private key imported into browser wallet; displayed address not independently verified",
+  "ai_inference": "PASS: free-model inference, schema-defined tool call, and synthetic tool-result round trip verified; both requests reported zero cost",
+  "ai_provider": "openrouter",
+  "openrouter_verification": {
+    "checked_at": "2026-10-13T14:53:19.692031+00:00",
+    "authentication": "PASS",
+    "total_credits": 0,
+    "total_usage": 0.005956285,
+    "key_limit": 50,
+    "key_limit_is_account_balance": false,
+    "inference_test": "PASS",
+    "key_uploaded_to_remote_service": false,
+    "model": "nvidia/nemotron-3.5-lightning:free",
+    "inference_checked_at": "2026-10-13T15:01:11.132638+00:00",
+    "schema_tool_call": "PASS",
+    "tool_result_round_trip": "PASS",
+    "reported_request_costs": [
+      0,
+      0
+    ],
+    "verification_scope": "Synthetic read-only REST API smoke test; application AI SDK integration remains implementation work"
+  },
+  "ai_model": "nvidia/nemotron-3.5-lightning:free",
+  "facilitator_verification": {
+    "checked_at": "2026-10-13T15:04:50.202754+00:00",
+    "endpoint": "https://facilitator.arcusnetwork.co/supported",
+    "http_status": 200,
+    "credentials_required_for_discovery": false,
+    "arc_testnet_network": "eip155:5042002",
+    "schemes": [
+      "exact",
+      "batch-settlement"
+    ],
+    "payment_settlement": "PENDING IMPLEMENTATION"
+  }
+}
