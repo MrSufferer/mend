@@ -1,0 +1,8 @@
+RefundReserveTest:testCumulativeDailyLimitAndUtcMidnightReset() (gas: 347148)
+RefundReserveTest:testEntitlementCannotBeReplacedOrRefundReplayed() (gas: 165735)
+RefundReserveTest:testFuzzRefundCannotExceedAuthorizedAmount(uint96,uint96) (runs: 1000, μ: 172025, ~: 171992)
+RefundReserveTest:testInsufficientBalanceKeepsEntitlementPending() (gas: 241977)
+RefundReserveTest:testInvalidEntitlementsAndOverCapAmountsRejected() (gas: 30514)
+RefundReserveTest:testOriginalPayerReceivesExactRefund() (gas: 158181)
+RefundReserveTest:testUnauthorizedRolesCannotAuthorizeOrSpend() (gas: 84384)
+RefundReserveTest:testWrongPayerAmountAndMissingEntitlementRejected() (gas: 107290)
