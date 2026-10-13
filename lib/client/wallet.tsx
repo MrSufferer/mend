@@ -31,24 +31,25 @@ function AuthProvider({children}:{children:ReactNode}) {
     logoutInFlight.current=logoutInFlight.current.catch(()=>{}).then(()=>api('/api/auth/logout',{method:'POST'}));
     return logoutInFlight.current;
   },[clear]);
+  const reportSignOutFailure=useCallback(()=>setMessage('Sign-out could not complete. Retry before signing in.'),[]);
   const load=useCallback(async()=>{
     if(signing.current)return;
     const version=generation.current;
     try {
       const found=await api<Session>('/api/auth/session');
       if(version!==generation.current)return;
-      if(currentIdentity.current && currentIdentity.current!==`${found.wallet}:${found.chainId}`){void revoke().catch(()=>setMessage('Sign-out could not complete. Retry before signing in.'));return;}
+      if(currentIdentity.current && currentIdentity.current!==`${found.wallet}:${found.chainId}`){void revoke().catch(reportSignOutFailure);return;}
       setSession(found);
     } catch(error){if(version===generation.current){clear();if(error instanceof RequestError && error.code!=='sign_in_required')setMessage(error.message);}}
     finally {setReady(true);}
-  },[clear,revoke]);
+  },[clear,revoke,reportSignOutFailure]);
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{
     if(connection.status==='connecting'||connection.status==='reconnecting')return;
-    if(lastIdentity.current!==null && lastIdentity.current!==identity){setMessage('Wallet changed. Sign in again to access private orders.');void revoke().catch(()=>setMessage('Sign-out could not complete. Retry before signing in.'));}
+    if(lastIdentity.current!==null && lastIdentity.current!==identity){setMessage('Wallet changed. Sign in again to access private orders.');void revoke().catch(reportSignOutFailure);}
     lastIdentity.current=identity;
-    if(session && `${session.wallet}:${session.chainId}`!==identity){void revoke().catch(()=>setMessage('Sign-out could not complete. Retry before signing in.'));}
-  },[identity,connection.status,session,revoke]);
+    if(session && `${session.wallet}:${session.chainId}`!==identity){void revoke().catch(reportSignOutFailure);}
+  },[identity,connection.status,session,revoke,reportSignOutFailure]);
   useEffect(()=>{
     const focus=()=>void load();
     const channel=new BroadcastChannel('mend-auth');
@@ -83,7 +84,7 @@ function AuthProvider({children}:{children:ReactNode}) {
   return <WalletContext.Provider value={{session,authenticated,ready,busy,message,address:connection.address,chainId:connection.chainId,connected:connection.isConnected,
     connect:()=>run(async()=>{if(!connectors[0])throw new RequestError(400,'wallet_missing','Install or enable an injected EOA wallet, then reload Mend.');await connect.mutateAsync({connector:connectors[0]});}),signIn,
     signOut:()=>run(async()=>{await revoke();const channel=new BroadcastChannel('mend-auth');channel.postMessage('signed-out');channel.close();await disconnect.mutateAsync();}),
-    switchNetwork:()=>run(async()=>{await switchChain.mutateAsync({chainId:arc.id});}),reset:()=>{void revoke().catch(()=>setMessage('Sign-out could not complete. Retry before signing in.'));}}}>{children}</WalletContext.Provider>;
+    switchNetwork:()=>run(async()=>{await switchChain.mutateAsync({chainId:arc.id});}),reset:()=>{void revoke().catch(reportSignOutFailure);}}}>{children}</WalletContext.Provider>;
 }
 export function WalletProviders({children}:{children:ReactNode}) {
   const [query]=useState(()=>new QueryClient({defaultOptions:{queries:{retry:false,staleTime:0,refetchOnWindowFocus:true}}}));
