@@ -6,4 +6,4 @@ Provisioning handoff for [issue #1](https://github.com/MrSufferer/mend/issues/1)
 - [Provisioning evidence and implementation follow-through](docs/provisioning-status.md)
 - [Public configuration and verification results](docs/provisioning-status.json)
 
-Application source and deployment are handled by dependent implementation tickets. Secrets remain in private local or service environments.
+[Private unpaid submission API and runnable client](docs/unpaid-orders.md) are implemented in issue #2. Paid processing, settlement, and recovery remain dependent-ticket work. Secrets remain in private local or service environments.
