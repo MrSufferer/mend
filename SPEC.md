@@ -166,3 +166,8 @@ The user resumed to-tickets, approved the revised 18-ticket breakdown, and autho
 
 
 The published parent specification is [GitHub #19](https://github.com/MrSufferer/mend/issues/19). Its native sub-issues #1–#18 include their relevant numbered user stories and technology constraints, with a full US-01–US-44 coverage table in the parent.
+
+
+## Implementation authorization — 2026-10-13
+
+The user resumed implementation for GitHub ticket #2 and then the next ticket in the approved list, #3. This supersedes historical implementation holds for those two slices only. Issue #1 is closed with verified provisioning access. The remaining tickets and parent specification are not completed by this work. The approved design, authority boundaries, and testing seams above remain the implementation baseline.
