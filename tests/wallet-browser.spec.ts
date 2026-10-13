@@ -139,11 +139,14 @@ test('an in-flight private download cannot open after the connected wallet chang
   await expect(page.getByText(draft.id,{exact:true})).toBeVisible();
   let release!:()=>void,received!:()=>void;
   const gated=new Promise<void>(resolve=>{release=resolve;}),ready=new Promise<void>(resolve=>{received=resolve;});
-  await page.route('**/api/orders/*/upload',async route=>{const response=await route.fetch();received();await gated;await route.fulfill({response});});
-  let externalRequest=false;page.on('request',request=>{if(new URL(request.url()).origin!=='http://127.0.0.1:3022')externalRequest=true;});
+  let grantUrl:string|undefined;
+  await page.route('**/api/orders/*/upload',async route=>{const response=await route.fetch();grantUrl=(await response.json()).url;received();await gated;await route.fulfill({response});});
+  // Track the issued private grant, independent of deployment/proxy origin or asset requests.
+  let privateDownload=false;page.on('request',request=>{if(grantUrl && request.url()===grantUrl)privateDownload=true;});
   await page.getByRole('button',{name:'Download upload',exact:true}).click();await ready;await control(page,'switch',1);
   await expect(page.getByText('Authenticated',{exact:true})).toHaveCount(0);
   const completed=page.waitForResponse(response=>response.url().endsWith(`/api/orders/${draft.id}/upload`));release();await completed;
   await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
-  expect(externalRequest).toBe(false);
+  expect(grantUrl).toBeTruthy();
+  expect(privateDownload).toBe(false);
 });
