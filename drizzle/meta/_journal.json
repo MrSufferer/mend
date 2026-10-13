@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791904504279,
+      "tag": "0000_clumsy_surge",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791904691331,
+      "tag": "0001_last_whistler",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791905357004,
+      "tag": "0002_wandering_the_executioner",
+      "breakpoints": true
+    }
+  ]
+}

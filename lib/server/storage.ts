@@ -1,0 +1,33 @@
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { ApiError } from './http';
+export const maxUploadBytes = 10 * 1024 * 1024;
+function client() {return new S3Client({endpoint:process.env.AWS_ENDPOINT_URL_S3,region:process.env.AWS_REGION,forcePathStyle:true,requestChecksumCalculation:'WHEN_REQUIRED',responseChecksumValidation:'WHEN_REQUIRED'});}
+function bucket() {if (!process.env.UPLOAD_BUCKET) throw new Error('UPLOAD_BUCKET is required'); return process.env.UPLOAD_BUCKET;}
+export async function presignUpload(key:string,size:number,expiresIn:number) {
+  const url = await getSignedUrl(client(), new PutObjectCommand({Bucket:bucket(),Key:key,ContentLength:size,ContentType:'application/pdf'}),{expiresIn});
+  return {url, method:'PUT',headers:{'content-type':'application/pdf'}};
+}
+export async function readUpload(key:string) {
+  const head = await client().send(new HeadObjectCommand({Bucket:bucket(),Key:key}));
+  if (!head.ContentLength || head.ContentLength > maxUploadBytes) throw new ApiError(422,'oversized_pdf','PDF must contain between 1 byte and 10 MB.');
+  const data = await client().send(new GetObjectCommand({Bucket:bucket(),Key:key}));
+  if (!data.Body) throw new ApiError(409,'upload_missing','Complete the private upload before finalizing.');
+  const body=data.Body as AsyncIterable<Uint8Array> & {destroy?:()=>void};
+  const chunks:Uint8Array[]=[]; let size=0;
+  try {
+    if (!data.ContentLength || data.ContentLength>maxUploadBytes) throw new ApiError(422,'oversized_pdf','PDF exceeds 10 MB.');
+    for await (const chunk of body) {
+      size+=chunk.length;
+      if (size>maxUploadBytes) throw new ApiError(422,'oversized_pdf','PDF exceeds 10 MB.');
+      chunks.push(chunk);
+    }
+  } catch(error) {body.destroy?.(); throw error;}
+  return {bytes:Buffer.concat(chunks), uploadedAt:data.LastModified ?? head.LastModified ?? new Date()};
+}
+export async function saveUpload(key:string,bytes:Uint8Array) {
+  await client().send(new PutObjectCommand({Bucket:bucket(),Key:key,Body:bytes,ContentType:'application/pdf'}));
+}
+export async function deleteUpload(key:string) {await client().send(new DeleteObjectCommand({Bucket:bucket(),Key:key}));}
+
+export async function presignRead(key:string,expiresIn:number) {return getSignedUrl(client(),new GetObjectCommand({Bucket:bucket(),Key:key,ResponseContentDisposition:'attachment; filename="upload.pdf"'}),{expiresIn});}
