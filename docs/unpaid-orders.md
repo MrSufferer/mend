@@ -2,6 +2,8 @@
 
 This slice validates and durably records a purchase before payment. It does not settle x402, process a paid job, invoke a model, or claim a wallet identity. Those are dependent tickets.
 
+Issue #3 adds verified wallet claims and session access. The capability-only descriptions below apply to unclaimed drafts; after claiming, inspection, download and submission replay require the same verified wallet session. See [wallet access](wallet-auth.md) for the current authorization boundary and programmatic sign-in flow.
+
 ## Run
 
 Use Node 22.13+ and `npm ci`. Load only the web role's `DATABASE_URL`, private web storage `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `UPLOAD_BUCKET` into the web environment. A restricted web `DATABASE_URL_UNPOOLED` is optional; the migration-owner URL is never a web credential. Do not load management API keys or wallet private keys.

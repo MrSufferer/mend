@@ -5,7 +5,7 @@ import { submissions, orders } from '../../../../../lib/server/schema';
 import { handle, json, ApiError, capabilityHash } from '../../../../../lib/server/http';
 import { readUpload, saveUpload, deleteUpload } from '../../../../../lib/server/storage';
 import { validatePdf } from '../../../../../lib/server/pdf';
-import { presentOrder } from '../../../../../lib/server/orders';
+import { authorizedOrder, presentOrder } from '../../../../../lib/server/orders';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}) {return handle(async()=>{
@@ -15,7 +15,7 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   const [submission] = await db.select().from(submissions).where(and(eq(submissions.id,id),eq(submissions.capabilityHash,hash)));
   if (!submission) throw new ApiError(404,'submission_not_found','Submission not found.');
   const [existing] = await db.select().from(orders).where(eq(orders.submissionId,id));
-  if (existing) return json(presentOrder(existing));
+  if (existing) return json(presentOrder(await authorizedOrder(request,existing.id)));
   if (submission.rejected) throw new ApiError(422,submission.rejected,'This document was rejected before payment.');
   if (submission.expiresAt.getTime() <= Date.now()) {await deleteUpload(`staging/${id}.pdf`); throw new ApiError(410,'submission_expired','Upload window expired.');}
   let upload:Awaited<ReturnType<typeof readUpload>>; let validation:{pages:number};
@@ -41,5 +41,5 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   }).onConflictDoNothing().returning();
   const [order] = inserted.length ? inserted : await db.select().from(orders).where(eq(orders.submissionId,id));
   // Keep staging until its PUT grant expires; later sweep also deletes abandoned uploads.
-  return json(presentOrder(order), inserted.length ? 201 : 200);
+  return json(presentOrder(await authorizedOrder(request,order.id)), inserted.length ? 201 : 200);
 });}

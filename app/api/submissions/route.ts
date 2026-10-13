@@ -4,7 +4,7 @@ import { database } from '../../../lib/server/db';
 import { submissions, orders, policies } from '../../../lib/server/schema';
 import { handle, json, jsonBody, ApiError, capabilityHash } from '../../../lib/server/http';
 import { maxUploadBytes, presignUpload } from '../../../lib/server/storage';
-import { presentOrder } from '../../../lib/server/orders';
+import { authorizedOrder, presentOrder } from '../../../lib/server/orders';
 import { defaultPolicy, purchasedTerms } from '../../../lib/server/terms';
 import { desc } from 'drizzle-orm';
 export const runtime = 'nodejs';
@@ -22,7 +22,7 @@ export async function POST(request:Request) {return handle(async()=>{
   const [submission] = await db.select().from(submissions).where(and(eq(submissions.capabilityHash,hash),eq(submissions.idempotencyKey,body.idempotencyKey)));
   if (submission.size!==body.size || submission.sha256!==body.sha256) throw new ApiError(409,'idempotency_conflict','That idempotency key belongs to a different document.');
   const [order] = await db.select().from(orders).where(eq(orders.submissionId,submission.id));
-  if (order) return json({id:submission.id,order:presentOrder(order)});
+  if (order) return json({id:submission.id,order:presentOrder(await authorizedOrder(request,order.id))});
   if (submission.rejected) throw new ApiError(422,submission.rejected,'This rejected submission cannot be purchased; use a new idempotency key for a supported document.');
   if (submission.expiresAt.getTime() <= Date.now()) throw new ApiError(410,'submission_expired','Upload window expired. Use a new idempotency key.');
   return json({id:submission.id,expiresAt:submission.expiresAt.toISOString(),terms:submission.terms,upload:await presignUpload(`staging/${submission.id}.pdf`,submission.size,Math.max(1,Math.floor((submission.expiresAt.getTime()-Date.now())/1000)))},201);
