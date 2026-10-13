@@ -5,9 +5,9 @@ import { ApiError, capabilityHash } from './http';
 import { requireSession, requireOperator, sameOrigin } from './auth';
 export function presentOrder(order:Order) {
   return {id:order.id,status:order.status,createdAt:order.createdAt.toISOString(),terms:order.terms,
-    nextStep:'Submit payment through the API when payment checkout is available. Processing starts after confirmed payment.',
-    payment:{confirmed:false,processingStarted:false},
-    timeline:[{at:order.createdAt.toISOString(),message:'Document accepted. Payment is pending.'}],
+    nextStep:order.paidAt?'Payment confirmed. Processing is pending.':order.status==='payment_pending'?'Payment outcome is pending. Reconcile the original authorization; no additional payment is required.':'Submit payment through the API. Processing starts after confirmed payment.',
+    payment:{status:order.paidAt?'confirmed':order.status==='payment_pending'?'pending':'unpaid',confirmed:!!order.paidAt,processingStarted:false,receipt:order.paymentReceipt,payer:order.payerWallet,amount:'1',currency:'test USDC',network:'Arc testnet',transaction:order.paymentTransaction,transactionUrl:order.paymentTransaction?`https://explorer.testnet.arc.io/tx/${order.paymentTransaction}`:null,confirmedAt:order.paidAt?.toISOString()??null,deliveryDeadline:order.paidAt?new Date(order.paidAt.getTime()+order.terms.deliverySeconds*1000).toISOString():null},
+    timeline:[{at:order.createdAt.toISOString(),message:'Document accepted. Payment is pending.'},...(order.paidAt?[{at:order.paidAt.toISOString(),message:'Receipt confirmed: 1 test USDC paid directly to the merchant.'}]:[])],
     upload:{size:order.uploadSize,pages:order.pages,createdAt:order.uploadCreatedAt.toISOString(),expiresAt:order.uploadExpiresAt.toISOString(),available:order.uploadExpiresAt.getTime()>Date.now()}};
 }
 const notFound=()=>new ApiError(404,'order_not_found','Order not found.');
