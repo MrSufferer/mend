@@ -10,3 +10,5 @@ output/
 .vercel/
 playwright-report/
 test-results/
+
+.mend-*.json
