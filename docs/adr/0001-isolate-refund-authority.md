@@ -1,0 +1,3 @@
+# Isolate refund entitlement registration from recovery execution
+
+Mend uses dedicated testnet EOAs with separate administrator, registrar, and recovery-worker authority. The administrator key stays out of deployed recovery services, and the registrar runs separately from the recovery worker, independently checking durable evidence before recording an entitlement; putting all keys in one worker would let its compromise bypass that separation. The reserve enforces recorded entitlements and spending bounds, while the registrar remains trusted to assess off-chain eligibility; implementation must also prevent the recovery worker from rewriting the evidence or policy that grants its own authority.
