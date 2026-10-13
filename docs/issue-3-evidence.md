@@ -17,3 +17,13 @@ The TDD sequence began with a real HTTP sign-in failing at the missing endpoint,
 The auth migration was applied with the separate owner subprocess. No owner credential or signer key enters the web process. Expiry fixtures modify only disposable challenge/session records from a separate local fixture subprocess. No customer document is used in tests, and traces are disabled to avoid recording capabilities, cookies or signed storage grants.
 
 Hosted acceptance is performed separately after deployment. `tests/auth.spec.ts` supports `TEST_AUTH_ORIGIN` for the canonical deployment origin and `TEST_BASE_URL` for the protected-preview proxy; wrong-Origin cases remain effective. Local expiry/operator fixtures are skipped when absent. See [wallet access](wallet-auth.md) for configuration, API interfaces and the claimed-order programmatic authentication boundary.
+
+## Hosted acceptance
+
+The merged preview at `6a78a79` passed 13 HTTP tests against real restricted Neon and private storage, including the 10 MiB upload, and nine injected-wallet browser cases. Four fixture-dependent cases were skipped on the hosted environment: owner-only policy mutation, forced HTTP expiry, disposable configured-operator browser access and forced browser expiry. Those cases were exercised locally.
+
+The browser download assertion first produced a false positive because it classified preview-proxy requests as external using a hardcoded local port. Its corrected grant-specific assertion passed on the deployed preview; signed grants are held in memory and not logged. See [review fixes](review-fix-evidence.md).
+
+Final Preview: https://mend-9vy0nh2lb-gadillacers-projects.vercel.app (deployment `dpl_4U4mAcvZZKoFyxBGFBBB61XP3etw`, source `1c508cc7e89f67895e5329eeea4179f3ff06ea5a`). Vercel reported `READY`, target `preview`, and the production build passed. Four focused browser regressions passed on this reviewed deployment: account switching revokes and hides private data; narrow layouts/keyboard access; wallet-prompt focus; pending private download after switching accounts. Computed live button weight is 500, with no desktop horizontal overflow.
+
+The existing Preview protection remained enabled. Testing used a temporary automation bypass confined to a local forwarding proxy, with the bypass revoked after acceptance. No owner database credential or private wallet signer was deployed.
