@@ -1,0 +1,11 @@
+{
+  "authenticated": true,
+  "status": 200,
+  "size": 38,
+  "sha256": "cb4e6988ca4f78466e256450f218ec4ce01b59c52dd4f02c4dfe2c7ffa9267fb",
+  "contentVerified": true,
+  "originalDeadlineUnchanged": true,
+  "late": true,
+  "expiryUnchanged": true,
+  "deliveryUnchanged": true
+}

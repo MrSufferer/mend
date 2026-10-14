@@ -29,9 +29,9 @@ async function parser(bytes:Uint8Array,deadline:number,attemptId:string,holdMs:n
  const code=await exit;clearTimeout(timer);a.worker=undefined;reason=a.stopReason??reason;
  return {code,reason,text:code===0&&reason==='completed'&&!value?.error?value?.text:undefined};
 }
-function allowed(request:Request) {
- const expected=process.env.CONVERSION_SERVICE_SECRET||'',provided=request.headers.get('Authorization')?.replace(/^Bearer /,'')||'';
- return expected.length>=32&&provided.length===expected.length&&timingSafeEqual(Buffer.from(expected),Buffer.from(provided));
+function allowed(request:Request,secret='CONVERSION_SERVICE_SECRET') {
+ const expected=Buffer.from(process.env[secret]||''),provided=Buffer.from(request.headers.get('Authorization')?.replace(/^Bearer /,'')||'');
+ return expected.length>=32&&provided.length===expected.length&&timingSafeEqual(expected,provided);
 }
 async function observation(id:string) {
  const [order]=await database().select().from(orders).where(eq(orders.id,id));if(!order)return null;
@@ -52,6 +52,33 @@ async function finalAbsence(attempt:typeof executionAttempts.$inferSelect) {
  // Deterministic private key is checked even when no publication was prepared.
  try{await read(process.env.OUTPUT_BUCKET!,`results/${attempt.orderId}/${attempt.id}.txt`,AbortSignal.timeout(3000));return 'unknown' as const;}
  catch(error){return (error as {$metadata?:{httpStatusCode?:number}})?.$metadata?.httpStatusCode===404?'absent' as const:'unknown' as const;}
+}
+// Narrow worker commands never start, cancel or rerun a conversion.
+async function agentCommand(request:Request,path:string) {
+ if(!allowed(request,'AGENT_CONVERSION_SECRET'))return Response.json({error:'unauthorized'},{status:401});
+ const body=await request.json();
+ if(request.method!=='POST'||Object.keys(body).join(',')!=='invocationId'||! /^[0-9a-f-]{36}$/.test(body.invocationId))return Response.json({error:'invalid_invocation'},{status:400});
+ const assertion=await database().execute(sql`SELECT public.mend_agent_assert(${body.invocationId}::uuid) AS id`),id=String(assertion.rows[0].id);
+ if(path==='/agent/inspect')return Response.json(await observation(id));
+ if(!['/agent/output','/agent/restore'].includes(path))return Response.json({error:'not_found'},{status:404});
+ const [order]=await database().select().from(orders).where(eq(orders.id,id));
+ const attempts=await database().select().from(executionAttempts).where(eq(executionAttempts.orderId,id));
+ const stopped=attempts.length>0&&attempts.every(a=>!!a.publisherFinishedAt);
+ if(!stopped)return Response.json({verified:false,reason:'execution_unknown',execution:'unknown'});
+ if(order.disposition!=='unresolved')return Response.json({verified:false,reason:'disposition_fenced'});
+ for(const attempt of attempts){
+  if(!attempt.outputPublication)continue;
+  try{
+   const result=await checkedCandidate(attempt);if(!result)continue;
+   await database().execute(sql`SELECT public.mend_agent_assert(${body.invocationId}::uuid)`);
+   const proof={attemptId:attempt.id,sha256:result.sha256,size:result.size,createdAt:result.createdAt,expiresAt:result.expiresAt,verifiedAt:result.verifiedAt};
+   if(path==='/agent/output')return Response.json({verified:true,execution:'stopped',proof});
+   const restored=await database().execute(sql`SELECT public.mend_agent_restore(${body.invocationId}::uuid,${attempt.id}::uuid,${JSON.stringify(result)}::jsonb) AS restored`);
+   const [fresh]=await database().select().from(orders).where(eq(orders.id,id));
+   return Response.json({restored:!!restored.rows[0].restored,proof,deliveredAt:fresh.deliveredAt?.toISOString()??null,late:!!fresh.deliveredAt&&!!fresh.paidAt&&fresh.deliveredAt.getTime()>fresh.paidAt.getTime()+fresh.terms.deliverySeconds*1000});
+  }catch{return Response.json({verified:false,reason:'output_unknown'});}
+ }
+ return Response.json({verified:false,reason:'no_prepared_candidate'});
 }
 async function reconcile(id:string) {
  const [order]=await database().select().from(orders).where(eq(orders.id,id));if(!order)return {status:'not_found'};
@@ -124,6 +151,7 @@ async function scheduled(request:Request) {
 export default {async fetch(request:Request) {
  const url=new URL(request.url),path=url.pathname.replace(/\/+/g,'/');
  if(path==='/scheduled'&&request.method==='POST'){try{return await scheduled(request);}catch{return Response.json({error:'reconciliation_unavailable'},{status:503});}}
+ if(path.startsWith('/agent/')){try{return await agentCommand(request,path);}catch{return Response.json({error:'investigation_unavailable'},{status:503});}}
  if(!allowed(request))return Response.json({error:'unauthorized'},{status:401});
  try {
   if(request.method==='GET'&&path==='/status'){const id=url.searchParams.get('orderId')||'';if(!/^[0-9a-f-]{36}$/.test(id))return Response.json({error:'invalid_order'},{status:400});const result=await observation(id);return Response.json(result??{error:'not_found'},{status:result?200:404});}

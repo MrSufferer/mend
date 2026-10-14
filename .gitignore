@@ -21,3 +21,5 @@ node_modules
 .backend-build/
 
 .receipts-build/
+
+.agent-build/
