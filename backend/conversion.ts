@@ -161,7 +161,11 @@ async function reconcile(id:string) {
  for(const attempt of attempts) {
   if(attempt.stopRequestedAt)stop(attempt.id,'stop_requested');
   if(!attempt.publisherFinishedAt)continue; // Lease/deploy/timeout never proves termination.
-  if(!attempt.outputPublication){const absent=await finalAbsence(attempt)==='absent';outputUnknown ||= !absent;outcome=absent?'stopped_no_output':'output_unknown';continue;}
+  if(!attempt.outputPublication){
+   const absent=await finalAbsence(attempt)==='absent';
+   if(absent&&(attempt.diagnosticCode==='pdf_conversion_failed'||attempt.diagnosticCode==='upload_integrity'))await database().execute(sql`SELECT public.mend_fail_execution(${attempt.id}::uuid,'absent',${attempt.diagnosticCode})`);
+   outputUnknown ||= !absent;outcome=absent?'stopped_no_output':'output_unknown';continue;
+  }
   if(!allStopped){outputUnknown=true;continue;}
   try {
    const result=await checkedCandidate(attempt);
@@ -198,7 +202,7 @@ async function execute(order:Order,attemptId:string,experiment?:string){
   const parsed=await parser(bytes,deadline,attemptId,experiment==='shutdown'||experiment==='noack'?10000:0);parserObserved=true;
   await database().update(executionAttempts).set({stoppedAt:new Date(),stopReason:parsed.reason,parserExitCode:parsed.code}).where(eq(executionAttempts.id,attemptId));
   if(experiment==='failure')throw new Error('pdf_conversion_failed');
-  if(!parsed.text)throw new Error(parsed.reason==='deadline'?'deadline_stopped':'pdf_conversion_failed');
+  if(!parsed.text)throw new Error(parsed.reason==='deadline'?'deadline_stopped':['completed','parser_error'].includes(parsed.reason)?'pdf_conversion_failed':'infrastructure_error');
   const output=Buffer.from(parsed.text,'utf8'),key=`results/${id}/${attemptId}.txt`;
   const publication={state:'prepared' as const,key,sha256:hash(output),size:output.length,preparedAt:new Date().toISOString()};
   const prepared=await database().execute(sql`SELECT public.mend_prepare_output(${attemptId}::uuid,${JSON.stringify(publication)}::jsonb) AS prepared`);
@@ -213,9 +217,9 @@ async function execute(order:Order,attemptId:string,experiment?:string){
   if(parserLaunched&&!parserObserved&&control.worker){await control.worker.terminate();parserObserved=true;await database().update(executionAttempts).set({stoppedAt:new Date(),stopReason:control.stopReason??'parser_terminated',parserExitCode:1}).where(eq(executionAttempts.id,attemptId));}
   if(!parserLaunched)await database().update(executionAttempts).set({stoppedAt:new Date(),stopReason:'before_parser'}).where(eq(executionAttempts.id,attemptId));
   const [attempt]=await database().select().from(executionAttempts).where(eq(executionAttempts.id,attemptId));
-  if(attempt.stoppedAt){const finalCheck=attempt.outputPublication?'unknown':await finalAbsence(attempt);await database().execute(sql`SELECT public.mend_finish_execution(${attemptId}::uuid,${finalCheck},NULL)`);}
-  await database().update(executionAttempts).set({diagnosticCode:error instanceof Error&&['upload_integrity','deadline_stopped','pdf_conversion_failed'].includes(error.message)?error.message:'infrastructure_error'}).where(eq(executionAttempts.id,attemptId));
-  await database().update(orders).set({status:'processing_failed'}).where(and(eq(orders.id,id),isNull(orders.deliveredAt)));return {status:'stopped'};
+  const diagnostic=error instanceof Error&&['upload_integrity','deadline_stopped','pdf_conversion_failed'].includes(error.message)?error.message:'infrastructure_error';
+  if(attempt.stoppedAt){const finalCheck=attempt.outputPublication?'unknown':await finalAbsence(attempt);await database().execute(sql`SELECT public.mend_fail_execution(${attemptId}::uuid,${finalCheck},${diagnostic})`);}
+  return {status:'stopped'};
  }finally{clearTimeout(timer);clearInterval(poll);active.delete(attemptId);complete();}
 }
 async function scheduled(request:Request) {

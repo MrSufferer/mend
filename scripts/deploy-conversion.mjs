@@ -1,5 +1,6 @@
 // Local management process only: secrets are multipart fields, never CLI arguments.
 import {build} from 'esbuild';
+import {prepareDeployment} from './deployment-completion.mjs';
 import {readFile,writeFile,mkdir,rm} from 'node:fs/promises';
 import {parseEnv} from 'node:util';
 import {randomBytes} from 'node:crypto';
@@ -16,7 +17,7 @@ const servicePath=process.env.CONVERSION_SERVICE_ENV||'/private/tmp/mend-convers
 let service;try{service=parseEnv(await readFile(servicePath,'utf8'));}catch{service={CONVERSION_SERVICE_SECRET:randomBytes(32).toString('hex')};}
 if(service.CONVERSION_FUNCTION_URL&&!new URL(service.CONVERSION_FUNCTION_URL).hostname.includes(`-${slug}.compute.`))throw new Error('Service environment URL does not match requested conversion slug');
 const db=await load('database-conversion'),storage=await load('storage-conversion');
-const environment={DATABASE_URL:db.DATABASE_URL,DATABASE_URL_UNPOOLED:db.DATABASE_URL_UNPOOLED,AWS_ACCESS_KEY_ID:storage.AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY:storage.AWS_SECRET_ACCESS_KEY,AWS_ENDPOINT_URL_S3:storage.AWS_ENDPOINT_URL_S3,AWS_REGION:storage.AWS_REGION,UPLOAD_BUCKET:publicConfig.public_configuration.UPLOAD_BUCKET,OUTPUT_BUCKET:publicConfig.public_configuration.OUTPUT_BUCKET,CONVERSION_SERVICE_SECRET:service.CONVERSION_SERVICE_SECRET,AWS_SESSION_TOKEN:storage.AWS_SESSION_TOKEN||'disabled',AGENT_CONVERSION_SECRET:service.AGENT_CONVERSION_SECRET||'disabled',OPERATOR_CONVERSION_SECRET:service.OPERATOR_CONVERSION_SECRET||'disabled',REGISTRAR_CONVERSION_SECRET:service.REGISTRAR_CONVERSION_SECRET||'disabled',OPERATOR_WALLET_ADDRESS:process.env.OPERATOR_WALLET_ADDRESS||'disabled'};
+const environment={DATABASE_URL:db.DATABASE_URL,DATABASE_URL_UNPOOLED:db.DATABASE_URL_UNPOOLED,AWS_ACCESS_KEY_ID:storage.AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY:storage.AWS_SECRET_ACCESS_KEY,AWS_ENDPOINT_URL_S3:storage.AWS_ENDPOINT_URL_S3,AWS_REGION:storage.AWS_REGION,UPLOAD_BUCKET:publicConfig.public_configuration.UPLOAD_BUCKET,OUTPUT_BUCKET:publicConfig.public_configuration.OUTPUT_BUCKET,CONVERSION_SERVICE_SECRET:service.CONVERSION_SERVICE_SECRET,AWS_SESSION_TOKEN:storage.AWS_SESSION_TOKEN||'disabled',AGENT_CONVERSION_SECRET:service.AGENT_CONVERSION_SECRET||'disabled',OPERATOR_CONVERSION_SECRET:service.OPERATOR_CONVERSION_SECRET||'disabled',REGISTRAR_CONVERSION_SECRET:service.REGISTRAR_CONVERSION_SECRET||'disabled',OPERATOR_WALLET_ADDRESS:process.env.OPERATOR_WALLET_ADDRESS||service.OPERATOR_WALLET_ADDRESS||'disabled'};
 if(Object.hasOwn(process.env,'RECONCILIATION_TRIGGER_ID'))environment.RECONCILIATION_TRIGGER_ID=process.env.RECONCILIATION_TRIGGER_ID;
 if(Object.hasOwn(process.env,'INTERRUPTION_EXPERIMENT_ORDER'))environment.INTERRUPTION_EXPERIMENT_ORDER=process.env.INTERRUPTION_EXPERIMENT_ORDER;
 if(Object.entries(environment).some(([name,value])=>!value&&!['INTERRUPTION_EXPERIMENT_ORDER','RECONCILIATION_TRIGGER_ID'].includes(name)))throw new Error('Incomplete isolated conversion credentials');
@@ -27,16 +28,12 @@ await build({...options,entryPoints:['backend/parser.ts'],outfile:'.backend-buil
 execFileSync('zip',['-j','function.zip','index.mjs','parser.mjs'],{cwd:'.backend-build',stdio:'pipe'});
 const api=`https://console.neon.tech/api/v2/projects/${project}/branches/${branch}/functions/${slug}`;
 const headers={Authorization:`Bearer ${credentials.access_token}`};
+if(environment.OPERATOR_WALLET_ADDRESS==='disabled')throw new Error('Configured operator wallet required; refusing to remove existing authority');
+const complete=await prepareDeployment(api,headers);
 const form=new FormData();form.set('zip',new Blob([await readFile('.backend-build/function.zip')],{type:'application/zip'}),'function.zip');form.set('runtime','nodejs24');form.set('environment',JSON.stringify(environment));
 const deployed=await fetch(`${api}/deployments`,{method:'POST',headers,body:form});if(!deployed.ok)throw new Error(`Deployment HTTP ${deployed.status}`);
 await writeFile(servicePath,Object.entries(service).map(([key,value])=>`${key}=${value}`).join('\n')+'\n',{mode:0o600});
-for(let n=0;n<60;n++) {
- const response=await fetch(api,{headers});if(!response.ok)throw new Error(`Deployment status HTTP ${response.status}`);const body=await response.json();const fn=body.function??body;
- const state=fn.current_deployment?.status;
- if(state==='failed')throw new Error('Backend deployment failed; inspect sanitized Neon build logs');
- if(fn.invocation_url&&state==='completed'&&fn.active_deployment?.id===fn.current_deployment?.id) {
-  service.CONVERSION_FUNCTION_URL=fn.invocation_url;await writeFile(servicePath,Object.entries(service).map(([key,value])=>`${key}=${value}`).join('\n')+'\n',{mode:0o600});
-  console.log(JSON.stringify({slug,url:fn.invocation_url,status:state??'serving',deploymentId:fn.active_deployment.id,environmentNames:Object.keys(environment)}));break;
- }
- if(n===59)throw new Error('Deployment completion unconfirmed');await new Promise(resolve=>setTimeout(resolve,2000));
-}
+const {id:target,fn}=await complete(deployed);
+service.CONVERSION_FUNCTION_URL=fn.invocation_url;service.OPERATOR_WALLET_ADDRESS=environment.OPERATOR_WALLET_ADDRESS;
+await writeFile(servicePath,Object.entries(service).map(([key,value])=>`${key}=${value}`).join('\n')+'\n',{mode:0o600});
+console.log(JSON.stringify({slug,url:fn.invocation_url,status:'completed',deploymentId:target,environmentNames:Object.keys(environment)}));

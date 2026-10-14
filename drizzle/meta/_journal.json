@@ -239,6 +239,55 @@
       "when": 1791986408614,
       "tag": "0033_refund_invocation_validation",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791996346284,
+      "tag": "0034_processing_incidents",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791996480241,
+      "tag": "0035_failure_threshold",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791996588753,
+      "tag": "0036_pause_authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791996588754,
+      "tag": "0037_trusted_failure_classification",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791996588755,
+      "tag": "0038_pause_replay",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791996588756,
+      "tag": "0039_confirmed_output_absence",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791996588757,
+      "tag": "0040_preserve_terminal_evidence",
+      "breakpoints": true
     }
   ]
 }

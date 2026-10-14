@@ -18,3 +18,16 @@ export async function waitForDeployment(id,read,pause,attempts=60){
  }
  throw Error('Completion unconfirmed');
 }
+
+// Capture the pre-deploy ID before POST, then verify only that requested artifact.
+export async function prepareDeployment(api,headers,fetcher=fetch,pause=()=>new Promise(resolve=>setTimeout(resolve,2000))){
+ const read=async()=>{const response=await fetcher(api,{headers});if(!response.ok)throw Error(`Deployment status HTTP ${response.status}`);return response.json();};
+ const beforeBody=await read(),previous=(beforeBody.function??beforeBody).current_deployment?.id;
+ if(!Number.isSafeInteger(previous)||previous<0)throw Error('Previous deployment identifier missing');
+ return async response=>{
+  const raw=await response.text();let body;
+  if(raw.trim()){try{body=JSON.parse(raw);}catch{throw Error('Invalid deployment response');}}
+  const id=deploymentId(body,previous),fn=await waitForDeployment(id,read,pause);
+  return {id,fn};
+ };
+}
