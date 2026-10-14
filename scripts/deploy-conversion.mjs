@@ -1,6 +1,6 @@
 // Local management process only: secrets are multipart fields, never CLI arguments.
 import {build} from 'esbuild';
-import {deploymentId,waitForDeployment} from './deployment-completion.mjs';
+import {prepareDeployment} from './deployment-completion.mjs';
 import {readFile,writeFile,mkdir,rm} from 'node:fs/promises';
 import {parseEnv} from 'node:util';
 import {randomBytes} from 'node:crypto';
@@ -29,16 +29,11 @@ execFileSync('zip',['-j','function.zip','index.mjs','parser.mjs'],{cwd:'.backend
 const api=`https://console.neon.tech/api/v2/projects/${project}/branches/${branch}/functions/${slug}`;
 const headers={Authorization:`Bearer ${credentials.access_token}`};
 if(environment.OPERATOR_WALLET_ADDRESS==='disabled')throw new Error('Configured operator wallet required; refusing to remove existing authority');
-const readStatus=async()=>{const response=await fetch(api,{headers});if(!response.ok)throw new Error(`Deployment status HTTP ${response.status}`);return response.json();};
-const beforeBody=await readStatus(),before=(beforeBody.function??beforeBody).current_deployment?.id;
-if(!Number.isSafeInteger(before)||before<0)throw new Error('Previous deployment identifier missing');
+const complete=await prepareDeployment(api,headers);
 const form=new FormData();form.set('zip',new Blob([await readFile('.backend-build/function.zip')],{type:'application/zip'}),'function.zip');form.set('runtime','nodejs24');form.set('environment',JSON.stringify(environment));
 const deployed=await fetch(`${api}/deployments`,{method:'POST',headers,body:form});if(!deployed.ok)throw new Error(`Deployment HTTP ${deployed.status}`);
 await writeFile(servicePath,Object.entries(service).map(([key,value])=>`${key}=${value}`).join('\n')+'\n',{mode:0o600});
-const responseText=await deployed.text();let responseBody;
-if(responseText.trim()){try{responseBody=JSON.parse(responseText);}catch{throw new Error('Invalid deployment response');}}
-const target=deploymentId(responseBody,before);
-const fn=await waitForDeployment(target,readStatus,()=>new Promise(resolve=>setTimeout(resolve,2000)));
+const {id:target,fn}=await complete(deployed);
 service.CONVERSION_FUNCTION_URL=fn.invocation_url;service.OPERATOR_WALLET_ADDRESS=environment.OPERATOR_WALLET_ADDRESS;
 await writeFile(servicePath,Object.entries(service).map(([key,value])=>`${key}=${value}`).join('\n')+'\n',{mode:0o600});
 console.log(JSON.stringify({slug,url:fn.invocation_url,status:'completed',deploymentId:target,environmentNames:Object.keys(environment)}));
