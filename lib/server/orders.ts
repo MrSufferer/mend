@@ -1,6 +1,6 @@
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { database } from './db';
-import { orders, type Order } from './schema';
+import { orders, recoveryCases, agentActions, agentInvocations, type Order } from './schema';
 import { ApiError, capabilityHash } from './http';
 import { requireSession, requireOperator, sameOrigin } from './auth';
 export function presentOrder(order:Order) {
@@ -19,7 +19,7 @@ export function presentOrder(order:Order) {
 }
 const notFound=()=>new ApiError(404,'order_not_found','Order not found.');
 export async function authorizedOrder(request:Request,id:string) {
-  if (!/^[0-9a-f-]{36}$/.test(id)) throw notFound();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) throw notFound();
   const [order] = await database().select().from(orders).where(eq(orders.id,id));
   if(!order) throw notFound();
   if(order.ownerWallet) {
@@ -31,7 +31,7 @@ export async function authorizedOrder(request:Request,id:string) {
 export async function claimOrder(request:Request,id:string) {
   sameOrigin(request);
   const session=await requireSession(), hash=capabilityHash(request);
-  if(!/^[0-9a-f-]{36}$/.test(id)) throw notFound();
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) throw notFound();
   // Conditional ownership update locks the row: concurrent wallets cannot rebind it.
   // Claim establishes draft authorization only; no payer/payment fact is created.
   const [claimed]=await database().update(orders).set({ownerWallet:session.wallet}).where(and(eq(orders.id,id),eq(orders.capabilityHash,hash),eq(orders.status,'unpaid'),or(isNull(orders.ownerWallet),eq(orders.ownerWallet,session.wallet)))).returning();
@@ -43,9 +43,39 @@ export async function customerOrders() {
   const owned=await database().select().from(orders).where(eq(orders.ownerWallet,session.wallet)).orderBy(desc(orders.createdAt)).limit(100);
   return {orders:owned.map(presentOrder)};
 }
-export async function operatorOrders() {
+export async function operatorOrders(filter='unresolved') {
   await requireOperator();
-  // Unpaid drafts do not represent unresolved paid obligations.
-  const unresolved=await database().select().from(orders).where(sql`${orders.status} NOT IN ('unpaid','delivered','refunded')`).orderBy(desc(orders.createdAt)).limit(100);
-  return {orders:unresolved.map(order=>({...presentOrder(order),authorizedWallet:order.ownerWallet}))};
+  if(!['unresolved','processing','unpaid','completed'].includes(filter)) throw new ApiError(400,'invalid_filter','Choose unresolved, processing, unpaid, or completed orders.');
+  const scope=filter==='unpaid'?sql`${orders.paidAt} IS NULL`:filter==='completed'?sql`${orders.status} IN ('delivered','refunded')`:filter==='processing'?sql`${orders.paidAt} IS NOT NULL AND ${orders.status}='processing'`:sql`${orders.status} NOT IN ('unpaid','delivered','refunded')`;
+  const rows=await database().select({order:orders,case:recoveryCases}).from(orders).leftJoin(recoveryCases,eq(recoveryCases.orderId,orders.id)).where(scope)
+    .orderBy(sql`CASE WHEN ${recoveryCases.escalation} IS NOT NULL THEN 0 ELSE 1 END`,sql`CASE WHEN ${orders.deliveredAt} IS NULL AND ${orders.paidAt} + (${orders.terms}->>'deliverySeconds')::int * interval '1 second' <= now() THEN 0 ELSE 1 END`,sql`${orders.paidAt} + (${orders.terms}->>'deliverySeconds')::int * interval '1 second' ASC NULLS LAST`,orders.createdAt).limit(100);
+  return {filter,orders:rows.map(({order,case:record})=>({...presentOrder(order),authorizedWallet:order.ownerWallet,agent:{callsUsed:record?.callsUsed??0,callLimit:12,escalation:record?.escalation??null,observeAt:record?.observeAt?.toISOString()??null}}))};
+}
+async function operatorOrder(id:string) {
+  await requireOperator();
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) throw notFound();
+  const [order]=await database().select().from(orders).where(eq(orders.id,id));
+  if(!order) throw notFound();
+  return order;
+}
+export async function operatorRecovery(id:string) {
+  const order=await operatorOrder(id);
+  const [record]=await database().select().from(recoveryCases).where(eq(recoveryCases.orderId,id));
+  const [actions,invocations]=await Promise.all([
+    database().select().from(agentActions).where(eq(agentActions.orderId,id)).orderBy(desc(agentActions.createdAt)).limit(100),
+    database().select().from(agentInvocations).where(eq(agentInvocations.orderId,id)).orderBy(desc(agentInvocations.startedAt)).limit(50),
+  ]);
+  return {case:record??{orderId:id,callsUsed:0,escalation:null,observeAt:null},actions,invocations,evidence:{payment:presentOrder(order).payment,delivery:presentOrder(order).delivery,execution:order.recoveryObservation,disposition:order.disposition}};
+}
+export async function investigateOrder(request:Request,id:string) {
+  await operatorOrder(id);
+  sameOrigin(request);
+  const url=process.env.RECOVERY_AGENT_URL,secret=process.env.RECOVERY_AGENT_SECRET;
+  if(!url||!secret) throw new ApiError(503,'agent_unavailable','Agent investigation is unavailable. Existing obligations and deterministic recovery remain active.');
+  let response:Response;
+  try {response=await fetch(`${url.replace(/\/$/,'')}/investigate`,{method:'POST',headers:{Authorization:`Bearer ${secret}`,'Content-Type':'application/json'},body:JSON.stringify({orderId:id}),signal:AbortSignal.timeout(60_000),cache:'no-store',redirect:'error'});}
+  catch {throw new ApiError(503,'agent_unavailable','Investigation could not finish here. Refresh its durable history before trying again.');}
+  if(!response.ok) throw new ApiError(503,'agent_unavailable','Investigation could not finish. Refresh its durable history; existing obligations remain active.');
+  // Return only the authoritative projection, never provider responses or service credentials.
+  return operatorRecovery(id);
 }
