@@ -20,6 +20,8 @@ Lifecycle checks cover unsigned/customer denial, invalid action rejection, exhau
 
 The restart script stops and starts actual owned local web processes while retaining a copied-receipt12-call fixture and authenticated session. It verifies persisted check audit and budget, then rejects model investigation after restart. This is an actual web-process restart; it does not claim a production host-kill or live inference restart. Owned3035 is used; user3022 is untouched.
 
+The final restart rerun also passed after bounding readiness fetches and process shutdown. Cleanup checks already-exited children, waits three seconds for SIGTERM before SIGKILL of only the owned process group, and preserves fixture cleanup if shutdown fails.
+
 ## Deployment and verification
 
 Existing approved Neon project/branch only. Conversion `mendconversion6` deployment18; worker `mendagent7` deployment6. Both preserve their original scheduled trigger IDs. No broader destinations, signing authority, legacy deployment or infrastructure was changed. Migrations0022–24 are applied; applied SQL was not rewritten.
