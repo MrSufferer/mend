@@ -1,5 +1,6 @@
 // Local management process only: secrets are multipart fields, never CLI arguments.
 import {build} from 'esbuild';
+import {deploymentId,waitForDeployment} from './deployment-completion.mjs';
 import {readFile,writeFile,mkdir,rm} from 'node:fs/promises';
 import {parseEnv} from 'node:util';
 import {randomBytes} from 'node:crypto';
@@ -17,7 +18,7 @@ let service;try{service=parseEnv(await readFile(servicePath,'utf8'));}catch{serv
 const db=await load('database-worker'),model=await load('model'),storage=await load('storage-default');
 const conversion=parseEnv(await readFile(process.env.AGENT_CONVERSION_SERVICE_ENV||'/private/tmp/mend-conversion6-service.env','utf8'));
 service.AGENT_CONVERSION_SECRET??=randomBytes(32).toString('hex');conversion.AGENT_CONVERSION_SECRET=service.AGENT_CONVERSION_SECRET;await writeFile(process.env.AGENT_CONVERSION_SERVICE_ENV||'/private/tmp/mend-conversion6-service.env',Object.entries(conversion).map(([k,v])=>`${k}=${v}`).join('\n')+'\n',{mode:0o600});
-const environment={DATABASE_URL:db.DATABASE_URL,DATABASE_URL_UNPOOLED:db.DATABASE_URL_UNPOOLED,OPENROUTER_API_KEY:model.OPENROUTER_API_KEY,RECOVERY_MODEL_ID:process.env.RECOVERY_MODEL_ID||model.AI_MODEL,AGENT_SERVICE_SECRET:service.AGENT_SERVICE_SECRET,AGENT_CONVERSION_URL:conversion.CONVERSION_FUNCTION_URL,AGENT_CONVERSION_SECRET:service.AGENT_CONVERSION_SECRET,AWS_ACCESS_KEY_ID:'disabled',AWS_SECRET_ACCESS_KEY:'disabled',AWS_SESSION_TOKEN:'disabled',AWS_ENDPOINT_URL_S3:storage.AWS_ENDPOINT_URL_S3,AWS_REGION:storage.AWS_REGION,OUTPUT_BUCKET:publicConfig.public_configuration.OUTPUT_BUCKET,RECOVERY_WORKER_PRIVATE_KEY:'disabled',RECOVERY_REGISTRAR_PRIVATE_KEY:'disabled',MERCHANT_PRIVATE_KEY:'disabled',ADMINISTRATOR_PRIVATE_KEY:'disabled',SESSION_SECRET:'disabled',OPERATOR_WALLET_ADDRESS:process.env.OPERATOR_WALLET_ADDRESS||'disabled'};
+const environment={DATABASE_URL:db.DATABASE_URL,DATABASE_URL_UNPOOLED:db.DATABASE_URL_UNPOOLED,OPENROUTER_API_KEY:model.OPENROUTER_API_KEY,RECOVERY_MODEL_ID:process.env.RECOVERY_MODEL_ID||model.AI_MODEL,AGENT_SERVICE_SECRET:service.AGENT_SERVICE_SECRET,AGENT_CONVERSION_URL:conversion.CONVERSION_FUNCTION_URL,AGENT_CONVERSION_SECRET:service.AGENT_CONVERSION_SECRET,AWS_ACCESS_KEY_ID:'disabled',AWS_SECRET_ACCESS_KEY:'disabled',AWS_SESSION_TOKEN:'disabled',AWS_ENDPOINT_URL_S3:storage.AWS_ENDPOINT_URL_S3,AWS_REGION:storage.AWS_REGION,OUTPUT_BUCKET:publicConfig.public_configuration.OUTPUT_BUCKET,RECOVERY_WORKER_PRIVATE_KEY:'disabled',RECOVERY_REGISTRAR_PRIVATE_KEY:'disabled',MERCHANT_PRIVATE_KEY:'disabled',ADMINISTRATOR_PRIVATE_KEY:'disabled',SESSION_SECRET:'disabled',OPERATOR_WALLET_ADDRESS:process.env.OPERATOR_WALLET_ADDRESS||service.OPERATOR_WALLET_ADDRESS||'disabled'};
 if(Object.hasOwn(process.env,'AGENT_TRIGGER_ID'))environment.AGENT_TRIGGER_ID=process.env.AGENT_TRIGGER_ID;
 if(Object.entries(environment).some(([name,value])=>!value&&name!=='AGENT_TRIGGER_ID'))throw new Error('Incomplete isolated worker credentials');
 await rm('.agent-build',{recursive:true,force:true});await mkdir('.agent-build');
@@ -26,16 +27,17 @@ await build({...options,entryPoints:['backend/agent.ts'],outfile:'.agent-build/i
 execFileSync('zip',['-j','function.zip','index.mjs'],{cwd:'.agent-build',stdio:'pipe'});
 const api=`https://console.neon.tech/api/v2/projects/${project}/branches/${branch}/functions/${slug}`;
 const headers={Authorization:`Bearer ${credentials.access_token}`};
+if(environment.OPERATOR_WALLET_ADDRESS==='disabled')throw new Error('Configured operator wallet required; refusing to remove existing authority');
+const readStatus=async()=>{const response=await fetch(api,{headers});if(!response.ok)throw new Error(`Deployment status HTTP ${response.status}`);return response.json();};
+const beforeBody=await readStatus(),before=(beforeBody.function??beforeBody).current_deployment?.id;
+if(!Number.isSafeInteger(before)||before<0)throw new Error('Previous deployment identifier missing');
 const form=new FormData();form.set('zip',new Blob([await readFile('.agent-build/function.zip')],{type:'application/zip'}),'function.zip');form.set('runtime','nodejs24');form.set('environment',JSON.stringify(environment));
 const deployed=await fetch(`${api}/deployments`,{method:'POST',headers,body:form});if(!deployed.ok)throw new Error(`Deployment HTTP ${deployed.status}`);
 await writeFile(servicePath,Object.entries(service).map(([key,value])=>`${key}=${value}`).join('\n')+'\n',{mode:0o600});
-for(let n=0;n<60;n++) {
- const response=await fetch(api,{headers});if(!response.ok)throw new Error(`Deployment status HTTP ${response.status}`);const body=await response.json();const fn=body.function??body;
- const state=fn.current_deployment?.status;
- if(state==='failed')throw new Error('Backend deployment failed; inspect sanitized Neon build logs');
- if(fn.invocation_url&&state==='completed'&&fn.active_deployment?.id===fn.current_deployment?.id) {
-  service.RECOVERY_AGENT_URL=fn.invocation_url;await writeFile(servicePath,Object.entries(service).map(([key,value])=>`${key}=${value}`).join('\n')+'\n',{mode:0o600});
-  console.log(JSON.stringify({slug,url:fn.invocation_url,status:state??'serving',deploymentId:fn.active_deployment.id,environmentNames:Object.keys(environment)}));break;
- }
- if(n===59)throw new Error('Deployment completion unconfirmed');await new Promise(resolve=>setTimeout(resolve,2000));
-}
+const responseText=await deployed.text();let responseBody;
+if(responseText.trim()){try{responseBody=JSON.parse(responseText);}catch{throw new Error('Invalid deployment response');}}
+const target=deploymentId(responseBody,before);
+const fn=await waitForDeployment(target,readStatus,()=>new Promise(resolve=>setTimeout(resolve,2000)));
+service.RECOVERY_AGENT_URL=fn.invocation_url;service.OPERATOR_WALLET_ADDRESS=environment.OPERATOR_WALLET_ADDRESS;
+await writeFile(servicePath,Object.entries(service).map(([key,value])=>`${key}=${value}`).join('\n')+'\n',{mode:0o600});
+console.log(JSON.stringify({slug,url:fn.invocation_url,status:'completed',deploymentId:target,environmentNames:Object.keys(environment)}));

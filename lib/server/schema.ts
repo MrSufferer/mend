@@ -1,5 +1,5 @@
 import {sql} from 'drizzle-orm';
-import { pgTable, text, integer,index, timestamp, jsonb, uuid, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import { pgTable, text, boolean, integer,index, timestamp, jsonb, uuid, uniqueIndex, check } from 'drizzle-orm/pg-core';
 import type {PaymentPayload,PaymentRequirements} from '@x402/core/types';
 import type { PurchasedTerms, RecoveryPolicy } from './terms';
 export const policies = pgTable('recovery_policies', {
@@ -37,6 +37,7 @@ export const authSessions = pgTable('auth_sessions', {
 });
 
 export const paymentAttempts=pgTable('payment_attempts',{
+ admittedAt:timestamp('admitted_at',{withTimezone:true}).defaultNow().notNull(),admissionGeneration:integer('admission_generation').notNull().default(0),
  orderId:uuid('order_id').primaryKey().references(()=>orders.id), payer:text('payer').notNull(), nonce:text('nonce').notNull(),
  payload:jsonb('payload').$type<PaymentPayload>().notNull(), requirements:jsonb('requirements').$type<PaymentRequirements>().notNull(),
  startBlock:text('start_block').notNull(), scanBlock:text('scan_block').notNull(), transaction:text('transaction').unique(),
@@ -116,4 +117,20 @@ export const refundTransactions=pgTable('refund_transactions',{
 export const refundSweeps=pgTable('refund_sweeps',{
  invocationId:text('invocation_id').primaryKey(),orderId:uuid('order_id').references(()=>orders.id),
  scheduledAt:timestamp('scheduled_at',{withTimezone:true}).notNull(),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
+});
+
+// Restrictive service control is separate from paid-order execution and disposition.
+export const serviceAvailability=pgTable('service_availability',{
+ id:text('id').primaryKey().default('merchant'),paused:boolean('paused').notNull().default(false),
+ generation:integer('generation').notNull().default(0),failureGeneration:integer('failure_generation').notNull().default(0),
+ pausedAt:timestamp('paused_at',{withTimezone:true}),
+},t=>[check('single_merchant',sql`${t.id}='merchant'`)]);
+export const processingFailures=pgTable('processing_failures',{
+ attemptId:uuid('attempt_id').primaryKey().references(()=>executionAttempts.id),orderId:uuid('order_id').notNull().references(()=>orders.id),
+ generation:integer('generation').notNull(),diagnostic:text('diagnostic').notNull(),confirmedAt:timestamp('confirmed_at',{withTimezone:true}).notNull().defaultNow(),
+},t=>[index('processing_failure_window').on(t.confirmedAt)]);
+export const serviceIncidents=pgTable('service_incidents',{
+ id:uuid('id').primaryKey(),actorKind:text('actor_kind').notNull(),actor:text('actor').notNull(),reason:text('reason').notNull(),
+ evidence:jsonb('evidence').$type<{attemptIds:string[];orderIds:string[]}>().notNull(),
+ generation:integer('generation').notNull(),failureGeneration:integer('failure_generation').notNull(),createdAt:timestamp('created_at',{withTimezone:true}).notNull().defaultNow(),
 });

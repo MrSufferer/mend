@@ -42,7 +42,10 @@ export async function purchase(request:Request,id:string) {
    const verified=await new HTTPFacilitatorClient({url:process.env.X402_FACILITATOR_URL,timeoutMs:10000}).verify(payload,requirements);
    if(!verified.isValid||verified.payer?.toLowerCase()!==payer)throw new ApiError(402,'payment_invalid','Facilitator rejected the authorization.');
    const rpc=rpcClient();if(await rpc.getChainId()!==5042002)throw new Error('Wrong network');const block=(await rpc.getBlockNumber()).toString();
-   await database().insert(paymentAttempts).values({orderId:id,payer,nonce,payload,requirements,startBlock:block,scanBlock:block}).onConflictDoNothing();
+   const admission=await database().execute(sql`SELECT public.mend_admit_payment(${id}::uuid,${payer},${nonce},${JSON.stringify(payload)}::jsonb,${JSON.stringify(requirements)}::jsonb,${block}) AS value`);
+   const result=admission.rows[0]?.value as {error?:string};
+   if(result?.error==='purchases_paused')throw new ApiError(503,'purchases_paused','New purchases are paused during a processing incident. Existing paid orders continue recovery.');
+   if(result?.error)throw new ApiError(409,result.error,'This purchase cannot be admitted. Reconcile an existing authorization or submit a new document.');
    [attempt]=await database().select().from(paymentAttempts).where(eq(paymentAttempts.orderId,id));
    if(!attempt||attempt.payer!==payer||attempt.nonce!==nonce)throw new ApiError(409,'payment_conflict','Reconcile the original payment.');
   }
