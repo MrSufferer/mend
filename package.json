@@ -39,6 +39,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "drizzle-kit": "0.31.11",
+    "esbuild": "0.25.12",
     "pdf-lib": "1.17.1",
     "tsx": "4.23.15",
     "typescript": "7.0.2"

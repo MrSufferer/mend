@@ -18,6 +18,9 @@ export const orders = pgTable('orders', {
   createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(), uploadCreatedAt:timestamp('upload_created_at',{withTimezone:true}).notNull(),
   uploadExpiresAt:timestamp('upload_expires_at',{withTimezone:true}).notNull(), uploadKey:text('upload_key').notNull(),
   uploadSize:integer('upload_size').notNull(), uploadSha256:text('upload_sha256').notNull(), pages:integer('pages').notNull(),
+  executionStartedAt:timestamp('execution_started_at',{withTimezone:true}), deliveredAt:timestamp('delivered_at',{withTimezone:true}),
+  result:jsonb('result').$type<{key:string,sha256:string,size:number,createdAt:string,expiresAt:string,verifiedAt:string}>(),
+  lastDownloadAt:timestamp('last_download_at',{withTimezone:true}),
 },t=>[uniqueIndex('orders_owner_created').on(t.ownerWallet,t.createdAt,t.id)]);
 export type Order = typeof orders.$inferSelect;
 
@@ -39,3 +42,15 @@ export const paymentAttempts=pgTable('payment_attempts',{
  createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(), submittedAt:timestamp('submitted_at',{withTimezone:true}),
 },t=>[uniqueIndex('payment_authorization_unique').on(t.payer,t.nonce)]);
 export type PaymentAttempt=typeof paymentAttempts.$inferSelect;
+
+export const executionAttempts=pgTable('execution_attempts',{
+ id:uuid('id').primaryKey(),orderId:uuid('order_id').notNull().references(()=>orders.id),generation:integer('generation').notNull(),
+ state:text('state').notNull(),startedAt:timestamp('started_at',{withTimezone:true}).defaultNow().notNull(),
+ stoppedAt:timestamp('stopped_at',{withTimezone:true}),stopReason:text('stop_reason'),parserExitCode:integer('parser_exit_code'),
+ diagnosticCode:text('diagnostic_code'),
+ outputPublication:jsonb('output_publication').$type<{state:'prepared'|'committed';key:string;sha256:string;size:number;preparedAt:string}>(),
+},t=>[uniqueIndex('execution_order_generation').on(t.orderId,t.generation)]);
+export const resultDownloads=pgTable('result_downloads',{
+ id:uuid('id').primaryKey(),orderId:uuid('order_id').notNull().references(()=>orders.id),wallet:text('wallet').notNull(),
+ servedAt:timestamp('served_at',{withTimezone:true}).defaultNow().notNull(),size:integer('size').notNull(),sha256:text('sha256').notNull(),
+});
