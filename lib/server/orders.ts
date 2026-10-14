@@ -1,8 +1,10 @@
+import {randomUUID} from 'node:crypto';
+import {z} from 'zod';
 import { and, desc, eq, isNull, inArray, or, sql } from 'drizzle-orm';
 import { database } from './db';
-import { orders, recoveryCases, agentActions, agentInvocations, executionAttempts, type Order } from './schema';
+import { orders, recoveryCases, agentActions, agentInvocations, executionAttempts, operatorRequests, type Order } from './schema';
 import { ApiError, capabilityHash } from './http';
-import { requireSession, requireOperator, sameOrigin } from './auth';
+import { requireSession, requireOperator, sameOrigin,operatorAuthority } from './auth';
 import {presentExecution,type ExecutionHistory} from './execution-history';
 async function withExecutionHistory(records:Order[]) {
   if(!records.length)return [];
@@ -73,17 +75,36 @@ export async function operatorRecovery(id:string) {
     database().select().from(agentActions).where(eq(agentActions.orderId,id)).orderBy(desc(agentActions.createdAt)).limit(100),
     database().select().from(agentInvocations).where(eq(agentInvocations.orderId,id)).orderBy(desc(agentInvocations.startedAt)).limit(50),
   ]);
-  return {case:record??{orderId:id,callsUsed:0,escalation:null,observeAt:null},actions,invocations,evidence:{payment:presentOrder(order).payment,delivery:presentOrder(order).delivery,execution:order.recoveryObservation,attempts:(await withExecutionHistory([order]))[0].executionHistory,disposition:order.disposition}};
+  const requests=await database().select().from(operatorRequests).where(eq(operatorRequests.orderId,id)).orderBy(desc(operatorRequests.requestedAt)).limit(100);
+  return {operatorRequests:requests.map(({sessionHash,...request})=>({...request,outcome:!request.finishedAt&&request.deadline.getTime()<=Date.now()?'uncertain':request.outcome})),case:record??{orderId:id,callsUsed:0,escalation:null,observeAt:null},actions,invocations,evidence:{payment:presentOrder(order).payment,delivery:presentOrder(order).delivery,execution:order.recoveryObservation,attempts:(await withExecutionHistory([order]))[0].executionHistory,disposition:order.disposition}};
 }
 export async function investigateOrder(request:Request,id:string) {
-  await operatorOrder(id);
-  sameOrigin(request);
-  const url=process.env.RECOVERY_AGENT_URL,secret=process.env.RECOVERY_AGENT_SECRET;
-  if(!url||!secret) throw new ApiError(503,'agent_unavailable','Agent investigation is unavailable. Existing obligations and deterministic recovery remain active.');
-  let response:Response;
-  try {response=await fetch(`${url.replace(/\/$/,'')}/investigate`,{method:'POST',headers:{Authorization:`Bearer ${secret}`,'Content-Type':'application/json'},body:JSON.stringify({orderId:id}),signal:AbortSignal.timeout(60_000),cache:'no-store',redirect:'error'});}
-  catch {throw new ApiError(503,'agent_unavailable','Investigation could not finish here. Refresh its durable history before trying again.');}
-  if(!response.ok) throw new ApiError(503,'agent_unavailable','Investigation could not finish. Refresh its durable history; existing obligations remain active.');
-  // Return only the authoritative projection, never provider responses or service credentials.
-  return operatorRecovery(id);
+ return requestOperatorAction(request,id,'investigate');
+}
+export async function operatorAction(request:Request,id:string) {
+ await operatorOrder(id);sameOrigin(request);
+ const body=z.object({action:z.enum(['check','restore','retry'])}).strict().safeParse(await request.json().catch(()=>null));
+ if(!body.success)throw new ApiError(400,'invalid_action','Choose a deterministic check, verified restoration, or the single permitted retry.');
+ return requestOperatorAction(request,id,body.data.action);
+}
+async function requestOperatorAction(request:Request,id:string,action:string) {
+ await operatorOrder(id);sameOrigin(request);
+ const actor=await operatorAuthority(),requestId=randomUUID();
+ const begun=await database().execute(sql`SELECT public.mend_operator_begin(${requestId}::uuid,${id}::uuid,${actor.sessionHash},${action},${actor.wallet}) AS request`);
+ const pending=begun.rows[0].request as {reason?:string};
+ if(!pending.reason) {
+  const model=action==='investigate',url=model?process.env.RECOVERY_AGENT_URL:process.env.OPERATOR_CONVERSION_URL,secret=model?process.env.RECOVERY_AGENT_SECRET:process.env.OPERATOR_CONVERSION_SECRET;
+  try {
+   if(!url||!secret)throw Error('service_unavailable');
+   const response=await fetch(`${url.replace(/\/$/,'')}/${model?'investigate':'operator'}`,{method:'POST',headers:{Authorization:`Bearer ${secret}`,'Content-Type':'application/json'},body:JSON.stringify(model?{orderId:id,requestId}:{requestId}),signal:AbortSignal.timeout(60_000),cache:'no-store',redirect:'error'});
+   if(!response.ok)throw Error('service_unavailable');
+   if(model) {const result=await response.json();if(result.error)await database().execute(sql`SELECT public.mend_operator_finish(${requestId}::uuid,'skipped',${JSON.stringify({reason:result.error})}::jsonb)`);}
+  }catch {
+   // A timeout is an uncertain request outcome, never proof that execution stopped.
+   // Conversion may still finish; leave its request pending until durable completion/expiry.
+   // Durable worker/conversion completion owns the eventual outcome.
+  }
+ }
+ const refreshed=await operatorRecovery(id);
+ return {...refreshed,operatorRequest:refreshed.operatorRequests.find(item=>item.id===requestId)};
 }

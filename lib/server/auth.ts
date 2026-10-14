@@ -91,3 +91,9 @@ export async function logout(request:Request) {
   await setCookie(sessionCookie,'',0); await setCookie(bindingCookie,'',0);
   return json({signedOut:true});
 }
+
+// Never send this server-only session binding to browser projections or model prompts.
+export async function operatorAuthority() {
+ const session=await requireOperator();
+ return {wallet:session.wallet,sessionHash:(await cookieHash(sessionCookie))!};
+}

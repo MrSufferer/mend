@@ -1,5 +1,5 @@
 import {sql} from 'drizzle-orm';
-import { pgTable, text, integer, timestamp, jsonb, uuid, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer,index, timestamp, jsonb, uuid, uniqueIndex, check } from 'drizzle-orm/pg-core';
 import type {PaymentPayload,PaymentRequirements} from '@x402/core/types';
 import type { PurchasedTerms, RecoveryPolicy } from './terms';
 export const policies = pgTable('recovery_policies', {
@@ -70,8 +70,8 @@ export const recoveryCases=pgTable('recovery_cases',{
 });
 export const agentInvocations=pgTable('agent_invocations',{
  id:uuid('id').primaryKey(),orderId:uuid('order_id').notNull().references(()=>orders.id),startedAt:timestamp('started_at',{withTimezone:true}).defaultNow().notNull(),
- deadline:timestamp('deadline',{withTimezone:true}).notNull(),finishedAt:timestamp('finished_at',{withTimezone:true}),outcome:text('outcome'),
-});
+ purpose:text('purpose').notNull().default('model'),deadline:timestamp('deadline',{withTimezone:true}).notNull(),finishedAt:timestamp('finished_at',{withTimezone:true}),outcome:text('outcome'),
+},t=>[check('invocation_purpose',sql`${t.purpose} IN ('model','operator')`)]);
 export const agentCalls=pgTable('agent_calls',{
  id:uuid('id').primaryKey(),invocationId:uuid('invocation_id').notNull().references(()=>agentInvocations.id),orderId:uuid('order_id').notNull().references(()=>orders.id),ordinal:integer('ordinal').notNull(),
  claimedAt:timestamp('claimed_at',{withTimezone:true}).defaultNow().notNull(),
@@ -85,3 +85,11 @@ export const agentSweeps=pgTable('agent_sweeps',{
  id:text('id').primaryKey(),scheduledAt:timestamp('scheduled_at',{withTimezone:true}).notNull(),
  startedAt:timestamp('started_at',{withTimezone:true}).defaultNow().notNull(),completedAt:timestamp('completed_at',{withTimezone:true}),orderId:uuid('order_id').references(()=>orders.id),
 });
+
+export const operatorRequests=pgTable('operator_requests',{
+ id:uuid('id').primaryKey(),orderId:uuid('order_id').notNull().references(()=>orders.id),
+ actor:text('actor').notNull(),sessionHash:text('session_hash').notNull(),action:text('action').notNull(),
+ invocationId:uuid('invocation_id').references(()=>agentInvocations.id),requestedAt:timestamp('requested_at',{withTimezone:true}).defaultNow().notNull(),
+ deadline:timestamp('deadline',{withTimezone:true}).notNull(),dispatchedAt:timestamp('dispatched_at',{withTimezone:true}),finishedAt:timestamp('finished_at',{withTimezone:true}),
+ outcome:text('outcome').notNull().default('requested'),requestEvidence:jsonb('request_evidence').notNull(),outcomeEvidence:jsonb('outcome_evidence'),
+},t=>[check('operator_action',sql`${t.action} IN ('investigate','check','restore','retry')`),index('operator_request_history').on(t.orderId,t.requestedAt.desc()),uniqueIndex('operator_request_invocation').on(t.invocationId)]);

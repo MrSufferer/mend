@@ -4,7 +4,7 @@ import {randomUUID,createHash,timingSafeEqual} from 'node:crypto';
 import {and,desc,eq,isNull,sql} from 'drizzle-orm';
 import {S3Client,GetObjectCommand,PutObjectCommand} from '@aws-sdk/client-s3';
 import {database} from '../lib/server/db';
-import {orders,executionAttempts,reconciliationSweeps,type Order} from '../lib/server/schema';
+import {orders,executionAttempts,reconciliationSweeps,agentInvocations,type Order} from '../lib/server/schema';
 const hash=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
 const s3=()=>new S3Client({endpoint:process.env.AWS_ENDPOINT_URL_S3,region:process.env.AWS_REGION,forcePathStyle:true,requestChecksumCalculation:'WHEN_REQUIRED',responseChecksumValidation:'WHEN_REQUIRED'});
 const active=new Map<string,{abort:AbortController;worker?:Worker;stopReason?:string;done:Promise<void>}>();
@@ -58,7 +58,12 @@ async function agentCommand(request:Request,path:string) {
  if(!allowed(request,'AGENT_CONVERSION_SECRET'))return Response.json({error:'unauthorized'},{status:401});
  const body=await request.json();
  if(request.method!=='POST'||Object.keys(body).join(',')!=='invocationId'||! /^[0-9a-f-]{36}$/.test(body.invocationId))return Response.json({error:'invalid_invocation'},{status:400});
- const assertion=await database().execute(sql`SELECT public.mend_agent_assert(${body.invocationId}::uuid) AS id`),id=String(assertion.rows[0].id);
+ const [invocation]=await database().select().from(agentInvocations).where(eq(agentInvocations.id,body.invocationId));
+ if(invocation?.purpose!=='model')return Response.json({error:'invalid_invocation'},{status:403});
+ return recoveryCommand(body.invocationId,path);
+}
+async function recoveryCommand(invocationId:string,path:string) {
+ const assertion=await database().execute(sql`SELECT public.mend_agent_assert(${invocationId}::uuid) AS id`),id=String(assertion.rows[0].id);
  if(path==='/agent/inspect')return Response.json(await observation(id));
  if(!['/agent/output','/agent/restore','/agent/retry'].includes(path))return Response.json({error:'not_found'},{status:404});
  const [order]=await database().select().from(orders).where(eq(orders.id,id));
@@ -70,10 +75,10 @@ async function agentCommand(request:Request,path:string) {
   if(!attempt.outputPublication)continue;
   try{
    const result=await checkedCandidate(attempt);if(!result)continue;
-   await database().execute(sql`SELECT public.mend_agent_assert(${body.invocationId}::uuid)`);
+   await database().execute(sql`SELECT public.mend_agent_assert(${invocationId}::uuid)`);
    const proof={attemptId:attempt.id,sha256:result.sha256,size:result.size,createdAt:result.createdAt,expiresAt:result.expiresAt,verifiedAt:result.verifiedAt};
    if(path==='/agent/output')return Response.json({verified:true,execution:'stopped',proof});
-   const restored=await database().execute(sql`SELECT public.mend_agent_restore(${body.invocationId}::uuid,${attempt.id}::uuid,${JSON.stringify(result)}::jsonb) AS restored`);
+   const restored=await database().execute(sql`SELECT public.mend_agent_restore(${invocationId}::uuid,${attempt.id}::uuid,${JSON.stringify(result)}::jsonb) AS restored`);
    const [fresh]=await database().select().from(orders).where(eq(orders.id,id));
    return Response.json({status:restored.rows[0].restored?'restored':'unresolved',restored:!!restored.rows[0].restored,proof,deliveredAt:fresh.deliveredAt?.toISOString()??null,late:!!fresh.deliveredAt&&!!fresh.paidAt&&fresh.deliveredAt.getTime()>fresh.paidAt.getTime()+fresh.terms.deliverySeconds*1000});
   }catch{return Response.json({verified:false,reason:'output_unknown'});}
@@ -84,7 +89,7 @@ async function agentCommand(request:Request,path:string) {
   if(!parent||attempts.length!==1||parent.finalOutputCheck!=='absent'||!parent.publicationFencedAt)return Response.json({reason:'output_unknown'});
   if(await finalAbsence(parent)!=='absent')return Response.json({reason:'output_unknown'});
   const attemptId=randomUUID();
-  const result=await database().execute(sql`SELECT public.mend_agent_retry_claim(${body.invocationId}::uuid,${parent.id}::uuid,${attemptId}::uuid,${randomUUID()},${new Date().toISOString()}::timestamptz) AS claim`);
+  const result=await database().execute(sql`SELECT public.mend_agent_retry_claim(${invocationId}::uuid,${parent.id}::uuid,${attemptId}::uuid,${randomUUID()},${new Date().toISOString()}::timestamptz) AS claim`);
   const claim=result.rows[0]?.claim as {attemptId?:string;reason?:string};
   if(!claim?.attemptId)return Response.json(claim??{reason:'admission_unknown'});
   // The execution has its own durable identity/deadline. A caller/tool timeout does
@@ -92,6 +97,39 @@ async function agentCommand(request:Request,path:string) {
   return Response.json({...await execute(order,attemptId),attemptId,generation:1});
  }
  return Response.json({verified:false,reason:'no_prepared_candidate'});
+}
+async function operatorCommand(request:Request) {
+ if(!allowed(request,'OPERATOR_CONVERSION_SECRET'))return Response.json({error:'unauthorized'},{status:401});
+ const body=await request.json();
+ if(request.method!=='POST'||Object.keys(body).join(',')!=='requestId'||! /^[0-9a-f-]{36}$/.test(body.requestId))return Response.json({error:'invalid_request'},{status:400});
+ let evidence:Record<string,unknown>={reason:'action_outcome_unknown'},outcome='uncertain',dispatched=false;
+ try {
+  const actor=process.env.OPERATOR_WALLET_ADDRESS?.toLowerCase();if(!actor)throw Error('operator_unconfigured');
+  // The caller supplies only a durable request ID, never evidence, action authority or actor.
+  const asserted=await database().execute(sql`SELECT public.mend_operator_dispatch(${body.requestId}::uuid,${actor}) AS request`);
+  const dispatch=asserted.rows[0].request as {invocationId:string;action:string;reason?:string};
+  if(dispatch.reason)return Response.json({outcome:'uncertain',evidence:{reason:dispatch.reason}});
+  dispatched=true;
+  const {invocationId,action}=dispatch;
+  if(action==='check') {
+   const observed=await recoveryCommand(invocationId,'/agent/inspect');
+   const output=await recoveryCommand(invocationId,'/agent/output');
+   evidence={observation:await observed.json(),output:await output.json()};outcome='checked';
+  } else {
+   evidence=await(await recoveryCommand(invocationId,action==='restore'?'/agent/restore':'/agent/retry')).json();
+   outcome=evidence.restored||evidence.status==='completed'?'completed':evidence.attemptId?'uncertain':'skipped';
+  }
+ }catch(error){
+  // A failed response after dispatch can hide admitted execution. Only a proven
+  // pre-dispatch authority denial establishes that this request was skipped.
+  const cause=error as {message?:string;cause?:{message?:string}};
+  const reason=cause.cause?.message??cause.message;
+  if(!dispatched&&['operator_request_stale','operator_session_expired','invocation_expired','invalid_request'].includes(reason??'')){
+   outcome='skipped';evidence={reason};
+  }
+ }
+ await database().execute(sql`SELECT public.mend_operator_finish(${body.requestId}::uuid,${outcome},${JSON.stringify(evidence)}::jsonb)`);
+ return Response.json({outcome,evidence});
 }
 async function reconcile(id:string) {
  const [order]=await database().select().from(orders).where(eq(orders.id,id));if(!order)return {status:'not_found'};
@@ -174,6 +212,7 @@ async function scheduled(request:Request) {
 export default {async fetch(request:Request) {
  const url=new URL(request.url),path=url.pathname.replace(/\/+/g,'/');
  if(path==='/scheduled'&&request.method==='POST'){try{return await scheduled(request);}catch{return Response.json({error:'reconciliation_unavailable'},{status:503});}}
+ if(path==='/operator'){try{return await operatorCommand(request);}catch{return Response.json({error:'operator_unavailable'},{status:503});}}
  if(path.startsWith('/agent/')){try{return await agentCommand(request,path);}catch{return Response.json({error:'investigation_unavailable'},{status:503});}}
  if(!allowed(request))return Response.json({error:'unauthorized'},{status:401});
  try {
