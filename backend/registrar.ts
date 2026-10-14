@@ -3,7 +3,7 @@ import {eq,sql} from 'drizzle-orm';
 import type {Hex} from 'viem';
 import {database} from '../lib/server/db';
 import {orders,paymentAttempts} from '../lib/server/schema';
-import {verifyPayment,verifyRefundReceipt,type RefundBinding} from './refund-chain';
+import {verifyPayment,verifyRefundOutcome,type RefundBinding} from './refund-chain';
 import {canonicalReader,submitRefund} from './refund-transactions';
 import {authorized,uuid} from './refund-service-auth';
 type Refund=RefundBinding&{order_id:string;state:string;registered_at:string|null;refund_hash:Hex|null};
@@ -11,8 +11,8 @@ async function verifyOperations(orderId:string,r:Refund){
  for(const kind of ['registrar','refund'] as const){
   const result=await database().execute(sql`SELECT public.mend_refund_verify_operation(${orderId}::uuid,${kind}) AS operation`);
   const tx=result.rows[0].operation as {id:string;hash:Hex|null;state:string}|null;
-  if(!tx?.hash||tx.state==='confirmed')continue;
-  try{const receipt=await verifyRefundReceipt(canonicalReader(),kind,tx.hash,r);await database().execute(sql`SELECT public.mend_refund_receipt(${tx.id}::uuid,'confirmed',${JSON.stringify(receipt)}::jsonb)`);}
+  if(!tx?.hash||['confirmed','reverted'].includes(tx.state))continue;
+  try{const receipt=await verifyRefundOutcome(canonicalReader(),kind,tx.hash,r);await database().execute(sql`SELECT public.mend_refund_receipt(${tx.id}::uuid,${receipt.status==='success'?'confirmed':'reverted'},${JSON.stringify(receipt)}::jsonb)`);}
   catch{/* Missing, noncanonical or conflicting receipts remain unresolved. */}
  }
 }

@@ -1,19 +1,21 @@
 import {test,expect} from '@playwright/test';
-import {readFileSync} from 'node:fs';
-import {parseEnv} from 'node:util';
-import {neon} from '@neondatabase/serverless';
-const load=(name:string)=>parseEnv(readFileSync(`${process.env.PROVISIONING_ENV_DIR}/${name}.env`,'utf8'));
+import {refundFixture,role} from './refund-fixture';
 test('registrar cannot authorize an unknown execution from a request or model narrative',async()=>{
- const q=neon(load('database-registrar').DATABASE_URL_UNPOOLED);
- const [result]=await q.query("SELECT public.mend_refund_fence($1::uuid) AS result",['f38c2ea3-5fbf-4bd5-9418-043e9fd2661a']);
- expect(result.result.reason).toBe('execution_unknown');
+ const f=await refundFixture({unknown:true});try{
+  const [result]=await role('database-registrar').query("SELECT public.mend_refund_fence($1::uuid) AS result",[f.id]);
+  expect(result.result.reason).toBe('execution_unknown');
+ }finally{await f.cleanup();}
 });
 test('missing canonical payment proof cannot fence a stopped paid obligation',async()=>{
- const q=neon(load('database-registrar').DATABASE_URL_UNPOOLED);
- const [result]=await q.query("SELECT public.mend_refund_fence($1::uuid,'{}'::jsonb) AS result",['70416aef-c250-46de-aa30-cd5be751f9f2']);
- expect(['output_check_required','canonical_payment_required']).toContain(result.result.reason);
+ const f=await refundFixture();try{
+  await role('database-conversion').query("SELECT mend_refund_output_check($1,$2::jsonb,'absent')",[f.id,JSON.stringify([f.attempt])]);
+  const [result]=await role('database-registrar').query("SELECT public.mend_refund_fence($1::uuid,'{}'::jsonb) AS result",[f.id]);
+  expect(result.result.reason).toBe('canonical_payment_required');
+  expect((await f.owner.query('SELECT disposition FROM orders WHERE id=$1',[f.id]))[0].disposition).toBe('unresolved');
+ }finally{await f.cleanup();}
 });
 test('worker cannot fabricate final output absence or reserve authority',async()=>{
- const q=neon(load('database-worker').DATABASE_URL_UNPOOLED);
- await expect(q.query("SELECT public.mend_refund_output_check($1::uuid,'[]'::jsonb,'absent')",['70416aef-c250-46de-aa30-cd5be751f9f2'])).rejects.toMatchObject({code:'42501'});
+ const f=await refundFixture();try{
+  await expect(role('database-worker').query("SELECT public.mend_refund_output_check($1::uuid,'[]'::jsonb,'absent')",[f.id])).rejects.toMatchObject({code:'42501'});
+ }finally{await f.cleanup();}
 });

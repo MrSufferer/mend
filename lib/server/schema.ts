@@ -111,9 +111,9 @@ export const refundTransactions=pgTable('refund_transactions',{
  id:uuid('id').primaryKey(),orderId:uuid('order_id').notNull().references(()=>refunds.orderId),kind:text('kind').notNull().references(()=>refundSigners.kind),
  request:jsonb('request').notNull(),nonce:integer('nonce').notNull(),calldata:text('calldata').notNull(),rawTransaction:text('raw_transaction'),hash:text('hash').unique(),
  state:text('state').notNull().default('reserved'),receipt:jsonb('receipt'),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
-},t=>[uniqueIndex('refund_operation').on(t.orderId,t.kind),uniqueIndex('refund_signer_nonce').on(t.kind,t.nonce),check('refund_transaction_state',sql`${t.state} IN ('reserved','signed','submitted','unknown','confirmed','reverted')`)]);
+},t=>[uniqueIndex('refund_operation').on(t.orderId,t.kind).where(sql`${t.state} <> 'reverted'`),uniqueIndex('refund_signer_nonce').on(t.kind,t.nonce),check('refund_transaction_state',sql`${t.state} IN ('reserved','signed','submitted','unknown','confirmed','reverted')`)]);
 
 export const refundSweeps=pgTable('refund_sweeps',{
- invocationId:uuid('invocation_id').primaryKey(),orderId:uuid('order_id').references(()=>orders.id),
+ invocationId:text('invocation_id').primaryKey(),orderId:uuid('order_id').references(()=>orders.id),
  scheduledAt:timestamp('scheduled_at',{withTimezone:true}).notNull(),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
 });

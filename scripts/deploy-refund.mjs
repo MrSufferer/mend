@@ -1,5 +1,6 @@
 // Local deployment process. Credential values never become command arguments or output.
 import {build} from 'esbuild';
+import {deploymentId,waitForDeployment} from './deployment-completion.mjs';
 import {readFile,writeFile,mkdir,rm} from 'node:fs/promises';
 import {parseEnv} from 'node:util';
 import {homedir} from 'node:os';
@@ -31,11 +32,16 @@ console.log(JSON.stringify({kind,slug,project,branch,environmentNames:Object.key
 if(!process.argv.includes('--deploy'))process.exit(0);
 const credentials=JSON.parse(await readFile(`${homedir()}/.config/neon/credentials.json`,'utf8')),headers={Authorization:`Bearer ${credentials.access_token}`};
 const api=`https://console.neon.tech/api/v2/projects/${project}/branches/${branch}/functions/${slug}`;
+const readStatus=async()=>{const response=await fetch(api,{headers});if(!response.ok)throw Error(`Status HTTP ${response.status}`);return response.json();};
+const beforeBody=await readStatus(),before=(beforeBody.function??beforeBody).current_deployment?.id;
+if(!Number.isSafeInteger(before)||before<0)throw Error('Previous deployment identifier missing');
 const form=new FormData();form.set('zip',new Blob([await readFile(`${directory}/function.zip`)],{type:'application/zip'}),'function.zip');form.set('runtime','nodejs24');form.set('environment',JSON.stringify(environment));
 const deployed=await fetch(`${api}/deployments`,{method:'POST',headers,body:form});if(!deployed.ok)throw Error(`Deployment HTTP ${deployed.status}`);
-for(let n=0;n<60;n++){
- const response=await fetch(api,{headers});if(!response.ok)throw Error(`Status HTTP ${response.status}`);const body=await response.json(),fn=body.function??body;
- if(fn.current_deployment?.status==='failed')throw Error('Deployment failed');
- if(fn.invocation_url&&fn.current_deployment?.status==='completed'&&fn.active_deployment?.id===fn.current_deployment.id){service[kind==='registrar'?'REGISTRAR_SERVICE_URL':'REFUND_SERVICE_URL']=fn.invocation_url;await writeFile(servicePath,Object.entries(service).map(([name,value])=>`${name}=${value}`).join('\n')+'\n',{mode:0o600});console.log(JSON.stringify({slug,url:fn.invocation_url,deployment:fn.active_deployment.id,status:'completed'}));break;}
- if(n===59)throw Error('Completion unconfirmed');await new Promise(resolve=>setTimeout(resolve,2000));
-}
+// Some API versions return no body. Pin the next ID from the pre-POST read in that case.
+const responseText=await deployed.text();let responseBody;
+if(responseText.trim()){try{responseBody=JSON.parse(responseText);}catch{throw Error('Invalid deployment response');}}
+const target=deploymentId(responseBody,before);
+const fn=await waitForDeployment(target,readStatus,()=>new Promise(resolve=>setTimeout(resolve,2000)));
+service[kind==='registrar'?'REGISTRAR_SERVICE_URL':'REFUND_SERVICE_URL']=fn.invocation_url;
+await writeFile(servicePath,Object.entries(service).map(([name,value])=>`${name}=${value}`).join('\n')+'\n',{mode:0o600});
+console.log(JSON.stringify({slug,url:fn.invocation_url,deployment:target,status:'completed'}));

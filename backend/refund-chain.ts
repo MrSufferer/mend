@@ -16,10 +16,10 @@ export type ChainReader={getChainId():Promise<number>;getTransactionReceipt(args
 export type RefundBinding={chain_order_id:Hex;payer:Address;amount_atomic:string};
 export const roleId=(kind:'registrar'|'refund')=>keccak256(stringToHex(kind==='registrar'?'REGISTRAR_ROLE':'WORKER_ROLE'));
 export const calldata=(kind:'registrar'|'refund',r:RefundBinding)=>encodeFunctionData({abi:reserveAbi,functionName:kind==='registrar'?'registerEntitlement':'refund',args:[r.chain_order_id,r.payer,BigInt(r.amount_atomic)]});
-async function canonical(rpc:ChainReader,hash:Hex){
+async function canonical(rpc:ChainReader,hash:Hex,allowReverted=false){
  if(await rpc.getChainId()!==chainId)throw new Error('wrong_chain');
  const receipt=await rpc.getTransactionReceipt({hash});
- if(receipt.transactionHash.toLowerCase()!==hash.toLowerCase()||receipt.status!=='success'||receipt.blockNumber===null)throw new Error('successful_receipt_required');
+ if(receipt.transactionHash.toLowerCase()!==hash.toLowerCase()||(!allowReverted&&receipt.status!=='success')||!['success','reverted'].includes(receipt.status)||receipt.blockNumber===null)throw new Error('successful_receipt_required');
  const block=await rpc.getBlock({blockNumber:receipt.blockNumber});
  if(block.hash?.toLowerCase()!==receipt.blockHash.toLowerCase())throw new Error('receipt_not_canonical');
  return {receipt,block};
@@ -38,9 +38,11 @@ export async function verifyPayment(rpc:ChainReader,o:Order,a:PaymentAttempt){
  if(!used||!transfer||!o.paidAt||BigInt(Math.floor(o.paidAt.getTime()/1000))!==block.timestamp)throw new Error('canonical_payment_required');
  return {transaction:o.paymentTransaction,payer:a.payer,amountAtomic:expected.amount,chainId:String(chainId),blockHash:receipt.blockHash,blockNumber:receipt.blockNumber.toString(),checkedAt:new Date().toISOString()};
 }
-export async function verifyRefundReceipt(rpc:ChainReader,kind:'registrar'|'refund',hash:Hex,r:RefundBinding){
- const {receipt}=await canonical(rpc,hash);let eventFound=false,transfer=kind==='registrar';
+export async function verifyRefundOutcome(rpc:ChainReader,kind:'registrar'|'refund',hash:Hex,r:RefundBinding){
+ const {receipt}=await canonical(rpc,hash,true);let eventFound=false,transfer=kind==='registrar';
  if(receipt.to?.toLowerCase()!==reserve||receipt.from.toLowerCase()!==signerAddresses[kind])throw new Error('wrong_refund_sender_or_contract');
+ const proof={transaction:hash,payer:r.payer,amountAtomic:r.amount_atomic,chainOrderId:r.chain_order_id,chainId:String(chainId),contract:reserve,sender:signerAddresses[kind],status:receipt.status,blockHash:receipt.blockHash,blockNumber:receipt.blockNumber.toString()};
+ if(receipt.status==='reverted')return proof;
  for(const log of receipt.logs){try{
   if(log.address.toLowerCase()===reserve){const event=decodeEventLog({abi:reserveAbi,data:log.data,topics:log.topics}) as unknown as ReserveEvent;
    if(event.eventName===(kind==='registrar'?'EntitlementRegistered':'Refunded'))eventFound ||= event.args.orderId.toLowerCase()===r.chain_order_id&&event.args.payer.toLowerCase()===r.payer&&event.args.amount===BigInt(r.amount_atomic);
@@ -48,5 +50,11 @@ export async function verifyRefundReceipt(rpc:ChainReader,kind:'registrar'|'refu
   if(kind==='refund'&&log.address.toLowerCase()===token){const event=decodeEventLog({abi:tokenAbi,data:log.data,topics:log.topics}) as TokenEvent;if(event.eventName==='Transfer')transfer ||= event.args.from.toLowerCase()===reserve&&event.args.to.toLowerCase()===r.payer&&event.args.value===BigInt(r.amount_atomic);}
  }catch{/* A matching event and transfer are both required. */}}
  if(!eventFound||!transfer)throw new Error('matching_refund_receipt_required');
- return {transaction:hash,payer:r.payer,amountAtomic:r.amount_atomic,chainOrderId:r.chain_order_id,chainId:String(chainId),contract:reserve,status:'success',blockHash:receipt.blockHash,blockNumber:receipt.blockNumber.toString()};
+ return proof;
+}
+
+export async function verifyRefundReceipt(rpc:ChainReader,kind:'registrar'|'refund',hash:Hex,r:RefundBinding){
+ const proof=await verifyRefundOutcome(rpc,kind,hash,r);
+ if(proof.status!=='success')throw new Error('successful_receipt_required');
+ return proof;
 }
