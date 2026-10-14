@@ -18,3 +18,4 @@ contracts/cache/
 contracts/broadcast/
 
 node_modules
+.backend-build/

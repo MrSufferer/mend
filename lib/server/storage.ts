@@ -31,3 +31,7 @@ export async function saveUpload(key:string,bytes:Uint8Array) {
 export async function deleteUpload(key:string) {await client().send(new DeleteObjectCommand({Bucket:bucket(),Key:key}));}
 
 export async function presignRead(key:string,expiresIn:number) {return getSignedUrl(client(),new GetObjectCommand({Bucket:bucket(),Key:key,ResponseContentDisposition:'attachment; filename="upload.pdf"'}),{expiresIn});}
+export async function readResult(key:string) {
+ const response=await client().send(new GetObjectCommand({Bucket:process.env.OUTPUT_BUCKET,Key:key}));if(!response.Body||!response.ContentLength||response.ContentLength>maxUploadBytes)throw new ApiError(409,'result_unavailable','The private result is unavailable for verification.');
+ const chunks:Uint8Array[]=[];let size=0;for await(const chunk of response.Body as AsyncIterable<Uint8Array>){size+=chunk.length;if(size>maxUploadBytes)throw new ApiError(409,'result_unavailable','The private result could not be verified.');chunks.push(chunk);}return Buffer.concat(chunks);
+}

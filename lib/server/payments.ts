@@ -6,6 +6,7 @@ import {database} from './db';
 import {orders,paymentAttempts,type PaymentAttempt} from './schema';
 import {presentOrder} from './orders';
 import {ApiError,capabilityHash,json} from './http';
+import {startConversion} from './conversion';
 export const arcUsdc='0x3600000000000000000000000000000000000000';
 const abi=parseAbi(['event AuthorizationUsed(address indexed authorizer, bytes32 indexed nonce)','event Transfer(address indexed from, address indexed to, uint256 value)']);
 export function paymentRequirements():PaymentRequirements {
@@ -91,7 +92,8 @@ export async function purchase(request:Request,id:string) {
    }
   }
  }
- const [updated]=await database().select().from(orders).where(eq(orders.id,id));
+ let [updated]=await database().select().from(orders).where(eq(orders.id,id));
+ if(updated.paidAt&&!updated.executionStartedAt&&!updated.deliveredAt) {await startConversion(id);[updated]=await database().select().from(orders).where(eq(orders.id,id));}
  const response=json(presentOrder(updated),updated.paidAt?200:202);
  if(updated.paidAt)response.headers.set('PAYMENT-RESPONSE',Buffer.from(JSON.stringify({success:true,transaction:updated.paymentTransaction,network:'eip155:5042002',payer:updated.payerWallet})).toString('base64'));
  return response;
