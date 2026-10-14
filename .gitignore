@@ -23,3 +23,5 @@ node_modules
 .receipts-build/
 
 .agent-build/
+
+.retry-build/

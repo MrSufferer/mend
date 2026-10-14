@@ -1,4 +1,5 @@
-import { pgTable, text, integer, timestamp, jsonb, uuid, uniqueIndex } from 'drizzle-orm/pg-core';
+import {sql} from 'drizzle-orm';
+import { pgTable, text, integer, timestamp, jsonb, uuid, uniqueIndex, check } from 'drizzle-orm/pg-core';
 import type {PaymentPayload,PaymentRequirements} from '@x402/core/types';
 import type { PurchasedTerms, RecoveryPolicy } from './terms';
 export const policies = pgTable('recovery_policies', {
@@ -52,7 +53,7 @@ export const executionAttempts=pgTable('execution_attempts',{
  publicationFencedAt:timestamp('publication_fenced_at',{withTimezone:true}), finalOutputCheck:text('final_output_check'),
  invocationId:text('invocation_id'), deadline:timestamp('deadline',{withTimezone:true}),
  outputPublication:jsonb('output_publication').$type<{state:'prepared'|'committed';key:string;sha256:string;size:number;preparedAt:string}>(),
-},t=>[uniqueIndex('execution_order_generation').on(t.orderId,t.generation)]);
+},t=>[uniqueIndex('execution_order_generation').on(t.orderId,t.generation),check('execution_generation_bound',sql`${t.generation} IN (0,1)`)]);
 export const resultDownloads=pgTable('result_downloads',{
  id:uuid('id').primaryKey(),orderId:uuid('order_id').notNull().references(()=>orders.id),wallet:text('wallet').notNull(),
  servedAt:timestamp('served_at',{withTimezone:true}).defaultNow().notNull(),size:integer('size').notNull(),sha256:text('sha256').notNull(),
