@@ -26,8 +26,8 @@ async function conversion(command:'inspect'|'output'|'restore'|'retry',invocatio
  const response=await conversionFetch(`${url.replace(/\/$/,'')}/agent/${command}`,{method:'POST',headers:{Authorization:`Bearer ${process.env.AGENT_CONVERSION_SECRET}`,'Content-Type':'application/json'},body:JSON.stringify({invocationId}),signal,redirect:'error'});
  if(!response.ok)throw new Error('conversion_unavailable');return response.json();
 }
-async function investigate(orderId:string,modelFetch:typeof fetch,conversionFetch:typeof fetch=fetch,maxSteps=12){
- const id=randomUUID();const started=await call<{error?:string;deadline:string;remaining:number}>(sql`SELECT public.mend_agent_begin(${orderId}::uuid,${id}::uuid) AS value`);
+async function investigate(orderId:string,modelFetch:typeof fetch,conversionFetch:typeof fetch=fetch,maxSteps=12,requestId?:string){
+ const id=randomUUID();const started=await call<{error?:string;deadline:string;remaining:number}>(requestId?sql`SELECT public.mend_operator_investigate(${requestId}::uuid,${id}::uuid,${process.env.OPERATOR_WALLET_ADDRESS?.toLowerCase()||''},${orderId}::uuid) AS value`:sql`SELECT public.mend_agent_begin(${orderId}::uuid,${id}::uuid) AS value`);
  if(started.error)return {...await view(orderId),error:started.error};
  const remainingMs=Math.max(1,new Date(started.deadline).getTime()-Date.now()),abort=new AbortController();const timer=setTimeout(()=>abort.abort(),remainingMs);
  let outcome='investigated';
@@ -56,7 +56,7 @@ async function investigate(orderId:string,modelFetch:typeof fetch,conversionFetc
   const provider=createOpenRouter({apiKey:process.env.OPENROUTER_API_KEY,compatibility:'strict',fetch:budgetedFetch});
   await generateText({model:provider.chat(modelId,{provider:{allow_fallbacks:false,require_parameters:true}}),system:instructions,prompt:`Investigate order ${orderId}. This durable case has ${started.remaining} provider requests remaining; allocate evidence-dependent tools within that budget. Choose permitted observation/restoration/retry from actual results.`,tools,stopWhen:isStepCount(Math.min(started.remaining,maxSteps)),maxRetries:0,maxOutputTokens:1500,onStepEnd:async(step)=>{for(const part of step.content){if(part.type==='tool-error'&&Object.hasOwn(tools,part.toolName)){const error=part.error as {name?:string};await record(part.toolName,{failure:/InvalidToolInput|TypeValidation/.test(error?.name??'')?'invalid_input':'execution_failed'},null,'failed');}}},abortSignal:abort.signal,timeout:{totalMs:remainingMs,toolMs:Math.min(15000,remainingMs)},});
  }catch{const [c]=await database().select().from(recoveryCases).where(eq(recoveryCases.orderId,orderId));outcome=abort.signal.aborted?'invocation_timeout':c?.callsUsed>=12?'budget_exhausted':'model_unavailable';}
- finally{clearTimeout(timer);await call(sql`SELECT public.mend_agent_finish(${id}::uuid,${outcome}) AS value`);}
+ finally{clearTimeout(timer);await call(sql`SELECT public.mend_agent_finish(${id}::uuid,${outcome}) AS value`);if(requestId)await call(sql`SELECT public.mend_operator_investigation_finish(${requestId}::uuid,${id}::uuid) AS value`);}
  return view(orderId);
 }
 async function scheduled(request:Request,modelFetch:typeof fetch){
@@ -73,7 +73,7 @@ export function createAgentService(options:{modelFetch?:typeof fetch;conversionF
  if(request.method==='POST'&&new URL(request.url).pathname==='/scheduled'){try{return await scheduled(request,options.modelFetch??fetch);}catch{return Response.json({error:'agent_unavailable'},{status:503});}}
  if(!authorized(request))return Response.json({error:'unauthorized'},{status:401});
  try{const url=new URL(request.url);if(request.method==='GET'&&url.pathname==='/case'){const id=url.searchParams.get('orderId')||'';if(!z.uuid().safeParse(id).success)return Response.json({error:'invalid_order'},{status:400});return Response.json(await view(id));}
- if(request.method==='POST'&&url.pathname==='/investigate'){const body=z.object({orderId:z.uuid()}).strict().parse(await request.json());return Response.json(await investigate(body.orderId,options.modelFetch??fetch,options.conversionFetch??fetch,options.maxSteps??12));}
+ if(request.method==='POST'&&url.pathname==='/investigate'){const body=z.object({orderId:z.uuid(),requestId:z.uuid().optional()}).strict().parse(await request.json());return Response.json(await investigate(body.orderId,options.modelFetch??fetch,options.conversionFetch??fetch,options.maxSteps??12,body.requestId));}
  if(request.method==='POST'&&url.pathname==='/probe'){
  const identity=await database().execute(sql`SELECT current_user AS role,has_table_privilege(current_user,'public.auth_sessions','SELECT') AS sessions,has_column_privilege(current_user,'public.orders','paid_at','UPDATE') AS payment_write,has_column_privilege(current_user,'public.orders','result','UPDATE') AS result_write,has_column_privilege(current_user,'public.execution_attempts','publisher_finished_at','UPDATE') AS stop_write`);
  const denied=async(statement:ReturnType<typeof sql>)=>{try{await database().execute(statement);return false;}catch(error){return (error as {cause?:{code?:string};code?:string}).code==='42501'||(error as {cause?:{code?:string}}).cause?.code==='42501';}};

@@ -65,19 +65,26 @@ export default function Live({operator=false}:{operator?:boolean}) {
   </div>;
 }
 
-type RecoveryHistory={case:{callsUsed:number;escalation:string|null;observeAt:string|null};actions:{id:string;tool:string;outcome:string;evidence:unknown;createdAt:string}[];invocations:{id:string;startedAt:string;deadline:string;finishedAt:string|null;outcome:string|null}[];evidence:{payment:{confirmed:boolean;processingStarted:boolean};delivery:{establishedAt:string|null;late:boolean};execution:{execution?:string;checkedAt:string}|null;disposition:string;attempts:Attempt[]}};
+type OperatorRequest={id:string;actor:string;action:string;requestedAt:string;outcome:string;requestEvidence:unknown;outcomeEvidence:{reason?:string}|null};
+type RecoveryHistory={operatorRequests:OperatorRequest[];case:{callsUsed:number;escalation:string|null;observeAt:string|null};actions:{id:string;tool:string;outcome:string;evidence:unknown;createdAt:string}[];invocations:{id:string;startedAt:string;deadline:string;finishedAt:string|null;outcome:string|null}[];evidence:{payment:{confirmed:boolean;processingStarted:boolean};delivery:{establishedAt:string|null;late:boolean};execution:{execution?:string;checkedAt:string}|null;disposition:string;attempts:Attempt[]}};
 function RecoveryDetail({order}:{order:Order}) {
-  const wallet=useWallet(),cache=useQueryClient(),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+  const wallet=useWallet(),cache=useQueryClient(),[busy,setBusy]=useState<string|null>(null),[message,setMessage]=useState('');
   const session=wallet.session;
   const history=useQuery({queryKey:['private',session?.wallet,session?.expiresAt,'recovery',order.id],enabled:wallet.authenticated&&session?.role==='operator',refetchInterval:5000,queryFn:({signal})=>api<RecoveryHistory>(`/api/operator/orders/${order.id}/recovery`,{signal})});
   useEffect(()=>{if(history.error instanceof RequestError&&history.error.status===401)wallet.reset();},[history.error,wallet.reset]);
   const record=history.data?.case,remaining=Math.max(0,12-(record?.callsUsed??order.agent?.callsUsed??0));
   const active=history.data?.invocations.some(invocation=>!invocation.finishedAt&&new Date(invocation.deadline).getTime()>Date.now());
-  async function investigate() {
-    setBusy(true);setMessage('');
-    try {await api(`/api/operator/orders/${order.id}/investigate`,{method:'POST'});setMessage('Investigation recorded. Review the evidence and action history.');}
-    catch(error){setMessage(error instanceof RequestError?error.message:'Investigation could not finish here. Refresh the durable history before trying again.');}
-    finally {setBusy(false);await cache.invalidateQueries({queryKey:['private']});}
+  const settled=!order.payment.confirmed||['delivered','refunded'].includes(order.status);
+  async function act(action:'investigate'|'check'|'restore'|'retry') {
+    setBusy(action);setMessage('');
+    try {
+      const response=await api<{operatorRequest:OperatorRequest}>(`/api/operator/orders/${order.id}/${action==='investigate'?'investigate':'actions'}`,{method:'POST',...(action==='investigate'?{}:{body:JSON.stringify({action})})});
+      const result=response.operatorRequest;
+      setMessage(result.outcome==='skipped'?`Action skipped: ${(result.outcomeEvidence?.reason??'current evidence does not permit this action').replaceAll('_',' ')}. Current order evidence refreshed.`:
+        result.outcome==='checked'?'Fresh evidence checked. Model budget is unchanged.':result.outcome==='completed'?'Action completed. Review the refreshed delivery and execution records.':result.outcome==='investigated'?'Investigation recorded. Review the evidence and action history.':'Action outcome is uncertain. Refresh durable evidence before trying again.');
+    }
+    catch(error){setMessage(error instanceof RequestError?error.message:'Action could not finish here. Refresh durable evidence before trying again.');}
+    finally {setBusy(null);await cache.invalidateQueries({queryKey:['private']});}
   }
   return <div className="live-timeline recovery-evidence"><h2>Recovery evidence</h2>
     {history.isPending?<p role="status">Loading recovery evidence…</p>:history.error?<><p role="status" className="access-warning">{history.error instanceof RequestError?history.error.message:'Recovery evidence could not load. Retry.'}</p><button className="secondary" onClick={()=>void history.refetch()}>Retry evidence</button></>:<>
@@ -86,8 +93,17 @@ function RecoveryDetail({order}:{order:Order}) {
       {record?.escalation?<p className="access-warning" role="status">Operator intervention required: {record.escalation}. Deterministic checks and existing authorized obligations continue.</p>:null}
       {record?.observeAt?<p>Next observation: <time className="mono" dateTime={record.observeAt}>{record.observeAt}</time>. Hosting interruptions can delay this check.</p>:null}
       <p>Each investigation is bounded to 60 seconds. At most 12 model calls are available for this case across restarts. Uncertain provider calls consume budget.</p>
-      <button className="primary" disabled={busy||active||remaining===0||!order.payment.confirmed||['delivered','refunded'].includes(order.status)} aria-busy={busy} onClick={()=>void investigate()}>{busy?'Investigating…':active?'Investigation in progress':remaining===0?'Model budget exhausted':'Investigate order'}</button>
+      <button className="primary" disabled={!!busy||active||remaining===0||settled} aria-busy={busy==='investigate'} onClick={()=>void act('investigate')}>{busy==='investigate'?'Investigating…':active?'Investigation in progress':remaining===0?'Model budget exhausted':'Investigate order'}</button>
+      <p>Fresh checks, verified output restoration and the purchased single retry use current evidence. They remain available after the model budget is exhausted. Each action rechecks permission and execution state before proceeding.</p>
+      <div className="access-actions">
+        <button className="secondary" disabled={!!busy||active||settled} aria-busy={busy==='check'} onClick={()=>void act('check')}>{busy==='check'?'Checking…':'Check fresh evidence'}</button>
+        <button className="secondary" disabled={!!busy||active||settled} aria-busy={busy==='restore'} onClick={()=>void act('restore')}>{busy==='restore'?'Restoring…':'Restore verified output'}</button>
+        <button className="secondary" disabled={!!busy||active||settled||order.terms.maxRetries===0} aria-busy={busy==='retry'} onClick={()=>void act('retry')}>{busy==='retry'?'Checking retry…':'Request permitted retry'}</button>
+      </div>
       {message?<p role="status" className="access-warning">{message}</p>:null}
+      <h2>Operator request history</h2><p className="caption">The authenticated operator, requested action, evidence and outcome are recorded durably. A pending or uncertain request does not establish delivery or execution stopping.</p>
+      {history.data?.operatorRequests.length?<ol>{history.data.operatorRequests.map(request=><li key={request.id}><time className="mono" dateTime={request.requestedAt}>{new Date(request.requestedAt).toLocaleString()}</time><p><strong>{request.action} · {request.outcome}</strong></p><p className="mono">Operator {request.actor}</p><details><summary>Inspect request and outcome evidence</summary><pre className="audit-json">{JSON.stringify({requested:request.requestEvidence,outcome:request.outcomeEvidence},null,2)}</pre></details></li>)}</ol>:<p>No operator requests have been recorded.</p>}
+
       <p>Generation history above separates original execution, the single retry, and final output evidence. Successful restoration appears in the action history and canonical delivery record.</p><h2>Agent action history</h2><p className="caption">Model-selected tool observations are audit evidence. They are separate from confirmed payment, delivery and refund records.</p>
       {history.data?.actions.length?<ol>{history.data.actions.map(action=><li key={action.id}><time className="mono" dateTime={action.createdAt}>{new Date(action.createdAt).toLocaleString()}</time><p><strong>{action.tool}</strong> · {action.outcome}</p><details><summary>Inspect observed evidence</summary><pre className="audit-json">{JSON.stringify(action.evidence,null,2)}</pre></details></li>)}</ol>:<p>No agent actions have been recorded.</p>}
       <h3>Investigation history</h3>{history.data?.invocations.length?<ol>{history.data.invocations.map(invocation=><li key={invocation.id}><time className="mono" dateTime={invocation.startedAt}>{new Date(invocation.startedAt).toLocaleString()}</time><p>{invocation.outcome??(new Date(invocation.deadline).getTime()<=Date.now()?'Deadline elapsed · refresh recorded outcome':'Investigation active')} · deadline <time className="mono" dateTime={invocation.deadline}>{invocation.deadline}</time></p></li>)}</ol>:<p>No investigations have been recorded.</p>}

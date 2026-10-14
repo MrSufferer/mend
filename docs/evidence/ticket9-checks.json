@@ -1,0 +1,16 @@
+{
+  "baseCommit": "ebb9df0030de641a0dd7797e4168e44baac068c7",
+  "branch": "ticket/9",
+  "lifecycleAndBrowser": {"tests": 17, "passed": 17, "durationSeconds": 32.4, "webPort": 3035},
+  "typecheck": "passed",
+  "productionWebpackBuild": {"result": "passed", "warnings": "Existing optional Wagmi connector dependencies"},
+  "schemaMetadata": "drizzle-kit generate reports no schema changes",
+  "appliedMigrations": ["0022_aromatic_makkari", "0023_operator_dispatch_fences", "0024_familiar_master_mold"],
+  "deployment": {"conversion": {"slug": "mendconversion6", "id": 18}, "worker": {"slug": "mendagent7", "id": 6}, "originalScheduledTriggersPreserved": true},
+  "redGreen": {"postAdmissionExecutionFailure": {"red": "generation1 existed, audit incorrectly skipped", "green": "generation1 exists, audit uncertain"}, "browser": {"red": "fresh-check control absent on12-call fixture", "green": "fresh-check enabled, audit visible, model investigation disabled"}},
+  "webRestart": {"fixture": "copied receipt, exhausted budget", "webProcessRestart": true, "durableCheckAudit": true, "callsUsedBefore": 12, "callsUsedAfter": 12, "investigation": "budget_exhausted", "newPayments": 0, "newModelCalls": 0},
+  "cleanup": {"ownedFixtureRowsRemaining": 0, "ownedFixtureFunctionsRemaining": 0, "ownedGeneratedOutputsDeleted": true},
+  "genuineEvidence": {"unknownStopOrder": "72557542-5b7b-4082-b6ae-6e306ee13980", "prior12CallAssumptionCorrected": true, "deliveredRetryOrder": "1e29d2bc-afd1-4f5f-a3af-d4dee236518b", "newPaymentOrModelCalls": 0},
+  "independentRoleAudit": "passed",
+  "userServer3022": "untouched"
+}

@@ -131,3 +131,17 @@ test('genuine successful retry is visible to its owner and in operator action hi
  const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Download text result',exact:true}).click();const file=await downloaded;expect(readFileSync((await file.path())!,'utf8')).toContain('Ticket eight successful single retry');
  await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
 });
+
+test('exhausted Recovery desk offers fresh checks and durable operator request history',async({page})=>{
+ const {operatorFixture}=await import('./operator-fixture');const fixture=await operatorFixture();
+ try{await wallet(page);await page.goto('/recovery');await page.getByRole('button',{name:'Connect wallet',exact:true}).click();await page.getByRole('button',{name:'Sign in',exact:true}).click();
+ await expect(page.getByLabel('Order view')).toBeVisible();await page.locator('.order-row').filter({hasText:fixture.id.slice(0,8)}).click();
+ await expect(page.getByRole('button',{name:'Model budget exhausted',exact:true})).toBeDisabled();
+ await expect(page.getByRole('button',{name:'Check fresh evidence',exact:true})).toBeEnabled();
+ await page.getByRole('button',{name:'Check fresh evidence',exact:true}).click();
+ await expect(page.getByText('Fresh evidence checked. Model budget is unchanged.',{exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Operator request history',exact:true})).toBeVisible();
+ await expect(page.getByText('check · checked',{exact:true}).first()).toBeVisible();
+ await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ }finally{await fixture.cleanup();}
+});
