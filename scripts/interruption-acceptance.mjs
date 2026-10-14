@@ -1,7 +1,7 @@
 // Local acceptance runner. Signing and service credentials stay outside the app.
 import{readFileSync,writeFileSync,existsSync}from'node:fs';import{parseEnv}from'node:util';import{randomBytes,randomUUID,createHash}from'node:crypto';import{PDFDocument,StandardFonts}from'pdf-lib';import{privateKeyToAccount}from'viem/accounts';import{x402Client}from'@x402/core/client';import{ExactEvmScheme}from'@x402/evm/exact/client';
 const origin=process.env.INTERRUPTION_WEB_ORIGIN||'http://127.0.0.1:3030';const mode=process.argv[2],operation=process.argv[3]||'prepare';if(!['shutdown','noack','publication'].includes(mode))throw Error('Invalid mode');
-const path=`/private/tmp/mend-ticket6-${mode}.json`,payer=privateKeyToAccount(parseEnv(readFileSync(process.env.INTERRUPTION_PURCHASER_ENV,'utf8')).TEST_PURCHASER_PRIVATE_KEY);
+const path=process.env.INTERRUPTION_CACHE_PATH||`/private/tmp/mend-ticket6-${mode}.json`,payer=privateKeyToAccount(parseEnv(readFileSync(process.env.INTERRUPTION_PURCHASER_ENV,'utf8')).TEST_PURCHASER_PRIVATE_KEY);
 let saved;if(existsSync(path))saved=JSON.parse(readFileSync(path,'utf8'));else{
  const pdf=await PDFDocument.create();pdf.addPage().drawText(`Durable ${mode} acceptance output`,{font:await pdf.embedFont(StandardFonts.Helvetica)});const bytes=Buffer.from(await pdf.save()),headers={Authorization:`Bearer ${randomBytes(32).toString('hex')}`};
  const req=async(url,method,data)=>{const response=await fetch(origin+url,{method,headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(data)});if(!response.ok)throw Error(`API ${response.status}`);return response.json();};

@@ -1,0 +1,25 @@
+{
+  "status": 200,
+  "body": {
+    "identity": {
+      "role": "mend_worker",
+      "sessions": false,
+      "payment_write": false,
+      "result_write": false,
+      "stop_write": false
+    },
+    "runtimeDenials": {
+      "sessionRead": true,
+      "paymentWrite": true,
+      "resultWrite": true,
+      "stopWrite": true,
+      "restorationWrite": true
+    },
+    "storageDenials": {
+      "read": true,
+      "write": true
+    },
+    "signingCredentialsAbsent": true,
+    "storageCredentialsDisabled": true
+  }
+}

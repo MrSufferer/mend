@@ -1,0 +1,138 @@
+{
+  "status": 200,
+  "orderId": "8e3851eb-47a0-4ef3-8017-474338706762",
+  "case": {
+    "orderId": "8e3851eb-47a0-4ef3-8017-474338706762",
+    "callsUsed": 5,
+    "escalation": null,
+    "observeAt": null,
+    "updatedAt": "2026-10-14T02:48:15.645Z"
+  },
+  "invocations": [
+    {
+      "id": "f0c2f62b-8f05-4ab7-86a3-501cbcc22778",
+      "orderId": "8e3851eb-47a0-4ef3-8017-474338706762",
+      "startedAt": "2026-10-14T02:48:05.198Z",
+      "deadline": "2026-10-14T02:49:05.198Z",
+      "finishedAt": "2026-10-14T02:48:15.645Z",
+      "outcome": "investigated"
+    }
+  ],
+  "calls": [
+    {
+      "id": "a1ada3cd-bd48-4daa-8c0b-a020740b93af",
+      "invocationId": "f0c2f62b-8f05-4ab7-86a3-501cbcc22778",
+      "orderId": "8e3851eb-47a0-4ef3-8017-474338706762",
+      "ordinal": 1,
+      "claimedAt": "2026-10-14T02:48:05.235Z"
+    },
+    {
+      "id": "477d0af1-36bd-4cd6-a91b-b10f19c2c398",
+      "invocationId": "f0c2f62b-8f05-4ab7-86a3-501cbcc22778",
+      "orderId": "8e3851eb-47a0-4ef3-8017-474338706762",
+      "ordinal": 2,
+      "claimedAt": "2026-10-14T02:48:06.339Z"
+    },
+    {
+      "id": "eeb5d175-128e-48fc-92c1-5f2860e87ff5",
+      "invocationId": "f0c2f62b-8f05-4ab7-86a3-501cbcc22778",
+      "orderId": "8e3851eb-47a0-4ef3-8017-474338706762",
+      "ordinal": 3,
+      "claimedAt": "2026-10-14T02:48:07.892Z"
+    },
+    {
+      "id": "0e123ee6-69f1-4dab-acda-5dfbf1ffbe83",
+      "invocationId": "f0c2f62b-8f05-4ab7-86a3-501cbcc22778",
+      "orderId": "8e3851eb-47a0-4ef3-8017-474338706762",
+      "ordinal": 4,
+      "claimedAt": "2026-10-14T02:48:09.677Z"
+    },
+    {
+      "id": "8e30232e-edf0-4fb7-97b8-3f592a8de917",
+      "invocationId": "f0c2f62b-8f05-4ab7-86a3-501cbcc22778",
+      "orderId": "8e3851eb-47a0-4ef3-8017-474338706762",
+      "ordinal": 5,
+      "claimedAt": "2026-10-14T02:48:10.920Z"
+    }
+  ],
+  "actions": [
+    {
+      "tool": "inspect_order",
+      "outcome": "observed",
+      "createdAt": "2026-10-14T02:48:06.329Z",
+      "evidence": {
+        "paidAt": "2026-10-14T02:45:36.000Z",
+        "result": null,
+        "status": "processing_failed",
+        "orderId": "8e3851eb-47a0-4ef3-8017-474338706762",
+        "deadline": "2026-10-14T02:47:36.000Z",
+        "deliveredAt": null,
+        "disposition": "unresolved",
+        "amountAtomic": "1000000",
+        "uploadExpired": false,
+        "paymentConfirmed": true,
+        "paymentTransaction": "0x66692135d10cf65e0f3dbe79ac4cbe2854107165a44ed483c6eaadfa64e5d5d0"
+      }
+    },
+    {
+      "tool": "inspect_execution",
+      "outcome": "observed",
+      "createdAt": "2026-10-14T02:48:07.886Z",
+      "evidence": {
+        "attempts": [
+          {
+            "id": "c22a9772-7c8b-453a-a627-2690e93debd1",
+            "state": "stopped",
+            "generation": 0,
+            "publication": {
+              "state": "prepared",
+              "preparedAt": "2026-10-14T02:47:15.125Z"
+            },
+            "parserExitedAt": "2026-10-14T02:47:15.119Z",
+            "stopRequestedAt": null,
+            "finalOutputCheck": "unknown",
+            "executionStoppedAt": "2026-10-14T02:47:15.353Z",
+            "publicationFencedAt": "2026-10-14T02:47:15.353Z"
+          }
+        ],
+        "execution": "stopped",
+        "reconciliation": null
+      }
+    },
+    {
+      "tool": "inspect_output",
+      "outcome": "observed",
+      "createdAt": "2026-10-14T02:48:09.670Z",
+      "evidence": {
+        "proof": {
+          "size": 38,
+          "sha256": "cb4e6988ca4f78466e256450f218ec4ce01b59c52dd4f02c4dfe2c7ffa9267fb",
+          "attemptId": "c22a9772-7c8b-453a-a627-2690e93debd1",
+          "createdAt": "2026-10-14T02:47:15.000Z",
+          "expiresAt": "2026-10-21T02:47:15.000Z",
+          "verifiedAt": "2026-10-14T02:48:09.659Z"
+        },
+        "verified": true,
+        "execution": "stopped"
+      }
+    },
+    {
+      "tool": "restore_result",
+      "outcome": "observed",
+      "createdAt": "2026-10-14T02:48:10.913Z",
+      "evidence": {
+        "late": true,
+        "proof": {
+          "size": 38,
+          "sha256": "cb4e6988ca4f78466e256450f218ec4ce01b59c52dd4f02c4dfe2c7ffa9267fb",
+          "attemptId": "c22a9772-7c8b-453a-a627-2690e93debd1",
+          "createdAt": "2026-10-14T02:47:15.000Z",
+          "expiresAt": "2026-10-21T02:47:15.000Z",
+          "verifiedAt": "2026-10-14T02:48:10.892Z"
+        },
+        "restored": true,
+        "deliveredAt": "2026-10-14T02:48:10.902Z"
+      }
+    }
+  ]
+}

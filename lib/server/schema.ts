@@ -62,3 +62,25 @@ export const reconciliationSweeps=pgTable('reconciliation_sweeps',{
  id:text('id').primaryKey(),scheduledAt:timestamp('scheduled_at',{withTimezone:true}).notNull(),
  startedAt:timestamp('started_at',{withTimezone:true}).defaultNow().notNull(),completedAt:timestamp('completed_at',{withTimezone:true}),observedOrders:integer('observed_orders').notNull().default(0),
 });
+
+export const recoveryCases=pgTable('recovery_cases',{
+ orderId:uuid('order_id').primaryKey().references(()=>orders.id),callsUsed:integer('calls_used').notNull().default(0),
+ escalation:text('escalation'),observeAt:timestamp('observe_at',{withTimezone:true}),updatedAt:timestamp('updated_at',{withTimezone:true}).defaultNow().notNull(),
+});
+export const agentInvocations=pgTable('agent_invocations',{
+ id:uuid('id').primaryKey(),orderId:uuid('order_id').notNull().references(()=>orders.id),startedAt:timestamp('started_at',{withTimezone:true}).defaultNow().notNull(),
+ deadline:timestamp('deadline',{withTimezone:true}).notNull(),finishedAt:timestamp('finished_at',{withTimezone:true}),outcome:text('outcome'),
+});
+export const agentCalls=pgTable('agent_calls',{
+ id:uuid('id').primaryKey(),invocationId:uuid('invocation_id').notNull().references(()=>agentInvocations.id),orderId:uuid('order_id').notNull().references(()=>orders.id),ordinal:integer('ordinal').notNull(),
+ claimedAt:timestamp('claimed_at',{withTimezone:true}).defaultNow().notNull(),
+},t=>[uniqueIndex('agent_case_ordinal').on(t.orderId,t.ordinal)]);
+export const agentActions=pgTable('agent_actions',{
+ id:uuid('id').primaryKey(),invocationId:uuid('invocation_id').notNull().references(()=>agentInvocations.id),orderId:uuid('order_id').notNull().references(()=>orders.id),
+ tool:text('tool').notNull(),outcome:text('outcome').notNull(),evidence:jsonb('evidence').notNull(),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
+});
+
+export const agentSweeps=pgTable('agent_sweeps',{
+ id:text('id').primaryKey(),scheduledAt:timestamp('scheduled_at',{withTimezone:true}).notNull(),
+ startedAt:timestamp('started_at',{withTimezone:true}).defaultNow().notNull(),completedAt:timestamp('completed_at',{withTimezone:true}),orderId:uuid('order_id').references(()=>orders.id),
+});

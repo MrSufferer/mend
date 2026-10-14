@@ -1,0 +1,12 @@
+{
+  "controlled": true,
+  "realPreparedObjectVerified": true,
+  "attemptRowHeldSeconds": 70,
+  "invocationDeadlineSeconds": 60,
+  "conversionRpcDeniedAfterLockRelease": true,
+  "rpcError": "invocation_expired",
+  "noDeliveryAfterRelease": true,
+  "expiredClaimDenied": true,
+  "httpStatus": 200,
+  "httpRestored": false
+}
