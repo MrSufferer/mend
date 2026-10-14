@@ -92,4 +92,28 @@ export const operatorRequests=pgTable('operator_requests',{
  invocationId:uuid('invocation_id').references(()=>agentInvocations.id),requestedAt:timestamp('requested_at',{withTimezone:true}).defaultNow().notNull(),
  deadline:timestamp('deadline',{withTimezone:true}).notNull(),dispatchedAt:timestamp('dispatched_at',{withTimezone:true}),finishedAt:timestamp('finished_at',{withTimezone:true}),
  outcome:text('outcome').notNull().default('requested'),requestEvidence:jsonb('request_evidence').notNull(),outcomeEvidence:jsonb('outcome_evidence'),
-},t=>[check('operator_action',sql`${t.action} IN ('investigate','check','restore','retry')`),index('operator_request_history').on(t.orderId,t.requestedAt.desc()),uniqueIndex('operator_request_invocation').on(t.invocationId)]);
+},t=>[check('operator_action',sql`${t.action} IN ('investigate','check','restore','retry','refund')`),index('operator_request_history').on(t.orderId,t.requestedAt.desc()),uniqueIndex('operator_request_invocation').on(t.invocationId)]);
+
+export const refundChecks=pgTable('refund_checks',{
+ orderId:uuid('order_id').primaryKey().references(()=>orders.id),checkedAt:timestamp('checked_at',{withTimezone:true}).notNull(),
+ attemptIds:jsonb('attempt_ids').$type<string[]>().notNull(),outcome:text('outcome').notNull(),
+},t=>[check('refund_check_outcome',sql`${t.outcome} IN ('absent','delivery','unknown')`)]);
+export const refunds=pgTable('refunds',{
+ orderId:uuid('order_id').primaryKey().references(()=>orders.id),chainOrderId:text('chain_order_id').notNull().unique(),
+ payer:text('payer').notNull(),amountAtomic:text('amount_atomic').notNull(),state:text('state').notNull(),
+ fencedAt:timestamp('fenced_at',{withTimezone:true}).notNull(),registeredAt:timestamp('registered_at',{withTimezone:true}),refundedAt:timestamp('refunded_at',{withTimezone:true}),
+ registrationHash:text('registration_hash'),refundHash:text('refund_hash'),receipt:jsonb('receipt'),blocker:text('blocker'),updatedAt:timestamp('updated_at',{withTimezone:true}).defaultNow().notNull(),
+},t=>[check('refund_amount',sql`${t.amountAtomic}='1000000'`),check('refund_state',sql`${t.state} IN ('registration_pending','registered','submitted','receipt_unknown','refunded')`)]);
+export const refundSigners=pgTable('refund_signers',{
+ kind:text('kind').primaryKey(),address:text('address').notNull().unique(),nextNonce:integer('next_nonce').notNull(),
+},t=>[check('refund_signer_kind',sql`${t.kind} IN ('registrar','refund')`)]);
+export const refundTransactions=pgTable('refund_transactions',{
+ id:uuid('id').primaryKey(),orderId:uuid('order_id').notNull().references(()=>refunds.orderId),kind:text('kind').notNull().references(()=>refundSigners.kind),
+ request:jsonb('request').notNull(),nonce:integer('nonce').notNull(),calldata:text('calldata').notNull(),rawTransaction:text('raw_transaction'),hash:text('hash').unique(),
+ state:text('state').notNull().default('reserved'),receipt:jsonb('receipt'),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
+},t=>[uniqueIndex('refund_operation').on(t.orderId,t.kind),uniqueIndex('refund_signer_nonce').on(t.kind,t.nonce),check('refund_transaction_state',sql`${t.state} IN ('reserved','signed','submitted','unknown','confirmed','reverted')`)]);
+
+export const refundSweeps=pgTable('refund_sweeps',{
+ invocationId:uuid('invocation_id').primaryKey(),orderId:uuid('order_id').references(()=>orders.id),
+ scheduledAt:timestamp('scheduled_at',{withTimezone:true}).notNull(),createdAt:timestamp('created_at',{withTimezone:true}).defaultNow().notNull(),
+});

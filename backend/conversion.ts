@@ -131,6 +131,25 @@ async function operatorCommand(request:Request) {
  await database().execute(sql`SELECT public.mend_operator_finish(${body.requestId}::uuid,${outcome},${JSON.stringify(evidence)}::jsonb)`);
  return Response.json({outcome,evidence});
 }
+// Only the independent registrar can request fresh storage evidence; caller supplies no facts.
+async function registrarCheck(request:Request) {
+ if(!allowed(request,'REGISTRAR_CONVERSION_SECRET'))return Response.json({error:'unauthorized'},{status:401});
+ const body=await request.json();if(request.method!=='POST'||Object.keys(body).join(',')!=='orderId'||! /^[0-9a-f-]{36}$/.test(body.orderId))return Response.json({error:'invalid_order'},{status:400});
+ const id=body.orderId,attempts=await database().select().from(executionAttempts).where(eq(executionAttempts.orderId,id)).orderBy(executionAttempts.generation);
+ let outcome='unknown';
+ if(attempts.length&&attempts.every(a=>a.stoppedAt&&a.publisherFinishedAt&&a.publicationFencedAt)) {
+  outcome='absent';
+  for(const attempt of attempts) {
+   if(attempt.outputPublication) {
+    try{const result=await checkedCandidate(attempt);if(result){const restored=await database().execute(sql`SELECT public.mend_restore_output(${attempt.id}::uuid,${JSON.stringify(result)}::jsonb) AS restored`);outcome=restored.rows[0]?.restored?'delivery':'unknown';break;}}catch{}
+    outcome='unknown';break;
+   }
+   if(attempt.finalOutputCheck!=='absent'||await finalAbsence(attempt)!=='absent'){outcome='unknown';break;}
+  }
+ }
+ const proof=await database().execute(sql`SELECT public.mend_refund_output_check(${id}::uuid,${JSON.stringify(attempts.map(a=>a.id))}::jsonb,${outcome}) AS proof`);
+ return Response.json(proof.rows[0].proof);
+}
 async function reconcile(id:string) {
  const [order]=await database().select().from(orders).where(eq(orders.id,id));if(!order)return {status:'not_found'};
  const deadline=order.paidAt?order.paidAt.getTime()+order.terms.deliverySeconds*1000:null;
@@ -212,6 +231,7 @@ async function scheduled(request:Request) {
 export default {async fetch(request:Request) {
  const url=new URL(request.url),path=url.pathname.replace(/\/+/g,'/');
  if(path==='/scheduled'&&request.method==='POST'){try{return await scheduled(request);}catch{return Response.json({error:'reconciliation_unavailable'},{status:503});}}
+ if(path==='/registrar/check')return registrarCheck(request);
  if(path==='/operator'){try{return await operatorCommand(request);}catch{return Response.json({error:'operator_unavailable'},{status:503});}}
  if(path.startsWith('/agent/')){try{return await agentCommand(request,path);}catch{return Response.json({error:'investigation_unavailable'},{status:503});}}
  if(!allowed(request))return Response.json({error:'unauthorized'},{status:401});
