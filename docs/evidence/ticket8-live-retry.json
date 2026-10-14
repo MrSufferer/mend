@@ -1,0 +1,89 @@
+{
+  "orderId": "1e29d2bc-afd1-4f5f-a3af-d4dee236518b",
+  "transaction": "0x9d54c5767c5ca42ca5be1b7a3b2e5e5ae1594ca3740cebcde297677a424c222d",
+  "paidAt": "2026-10-14T03:42:02.000Z",
+  "originalDeadline": "2026-10-14T03:44:02.000Z",
+  "deadlinePreserved": true,
+  "termsPreserved": true,
+  "delivery": {
+    "establishedAt": "2026-10-14T03:42:12.937Z",
+    "late": false,
+    "deadline": "2026-10-14T03:44:02.000Z",
+    "overdue": false
+  },
+  "result": {
+    "available": true,
+    "size": 37,
+    "createdAt": "2026-10-14T03:42:12.000Z",
+    "expiresAt": "2026-10-21T03:42:12.000Z",
+    "verifiedAt": "2026-10-14T03:42:12.933Z",
+    "lastDownloadAt": null
+  },
+  "attempts": [
+    {
+      "id": "3f365917-417f-40b3-9a68-e90c31c6d03a",
+      "generation": 0,
+      "state": "stopped",
+      "outcome": "Stopped without output",
+      "startedAt": "2026-10-14T03:42:05.056Z",
+      "parserExitedAt": "2026-10-14T03:42:05.294Z",
+      "executionStoppedAt": "2026-10-14T03:42:05.334Z",
+      "publicationFencedAt": "2026-10-14T03:42:05.334Z",
+      "finalOutputCheck": "absent",
+      "publication": null
+    },
+    {
+      "id": "df95cb4a-48c5-410a-b7a0-837fe1df980f",
+      "generation": 1,
+      "state": "completed",
+      "outcome": "Stopped · verified output",
+      "startedAt": "2026-10-14T03:42:12.502Z",
+      "parserExitedAt": "2026-10-14T03:42:12.745Z",
+      "executionStoppedAt": "2026-10-14T03:42:12.937Z",
+      "publicationFencedAt": "2026-10-14T03:42:12.937Z",
+      "finalOutputCheck": "valid",
+      "publication": "committed"
+    }
+  ],
+  "callsUsed": 6,
+  "invocations": [
+    {
+      "startedAt": "2026-10-14T03:42:05.804Z",
+      "deadline": "2026-10-14T03:43:05.805Z",
+      "finishedAt": "2026-10-14T03:42:18.404Z",
+      "outcome": "investigated"
+    }
+  ],
+  "tools": [
+    {
+      "tool": "inspect_order",
+      "at": "2026-10-14T03:42:06.900Z"
+    },
+    {
+      "tool": "inspect_execution",
+      "at": "2026-10-14T03:42:08.678Z"
+    },
+    {
+      "tool": "inspect_output",
+      "at": "2026-10-14T03:42:11.598Z"
+    },
+    {
+      "tool": "retry_once",
+      "at": "2026-10-14T03:42:12.946Z",
+      "result": {
+        "status": "completed",
+        "attemptId": "df95cb4a-48c5-410a-b7a0-837fe1df980f",
+        "generation": 1
+      }
+    },
+    {
+      "tool": "inspect_order",
+      "at": "2026-10-14T03:42:13.739Z"
+    }
+  ],
+  "download": {
+    "status": 200,
+    "expectedText": true,
+    "sha256": "8758c5f05eb8c2c2782d1ceb958481e643fd7f55c7e63256b0618009239609e9"
+  }
+}

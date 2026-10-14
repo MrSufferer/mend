@@ -26,9 +26,9 @@ test('operator filters paid processing, unpaid and completed records and rejects
  }
  expect((await request.get('/api/operator/orders?filter=anything')).status()).toBe(400);
 });
-async function wallet(page:Page,index=0,chainId=5042002) {
+async function wallet(page:Page,index=0,chainId=5042002,signer=operator) {
   await page.exposeFunction('signWalletMessage',async(address:string,message:Hex)=>{
-    const account=[operator].find(a=>a.address.toLowerCase()===address.toLowerCase());
+    const account=[signer].find(a=>a.address.toLowerCase()===address.toLowerCase());
     if(!account) throw new Error('Unknown synthetic signer');
     return account.signMessage({message:{raw:hexToBytes(message)}});
   });
@@ -53,7 +53,7 @@ async function wallet(page:Page,index=0,chainId=5042002) {
       throw Object.assign(new Error('Unsupported synthetic wallet method '+method),{code:-32601});
     }};
     Object.assign(window,{ethereum:provider,__wallet:{get waiting(){return !!release;},switch(index:number){selected=index;emit('accountsChanged',[addresses[selected]]);},reject(){reject=true;},hold(){hold=true;},release(){hold=false;release?.();release=undefined;},chain(id:number){chain=id;emit('chainChanged','0x'+id.toString(16));}}});
-  },{addresses:[operator].map(a=>a.address),index,chainId});
+  },{addresses:[signer].map(a=>a.address),index,chainId});
 }
 
 test('Recovery desk exposes unresolved-first filters and durable evidence without customer downloads',async({page})=>{
@@ -105,4 +105,29 @@ test('availability label shows canonical delivery time rather than object verifi
  expect(order,'A verified result with distinct publication time is required').toBeTruthy();
  await wallet(page);await page.goto('/recovery');await page.getByRole('button',{name:'Connect wallet',exact:true}).click();await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page.getByLabel('Order view')).toBeVisible();await page.getByLabel('Order view').selectOption('completed');await page.locator('.order-row').filter({hasText:order.id.slice(0,8)}).click();
  const availability=page.getByText('Authenticated availability established',{exact:false});await expect(availability).toBeVisible();await expect(availability.locator('time')).toHaveAttribute('datetime',order.delivery.establishedAt);await expect(availability).toContainText(order.delivery.establishedAt);
+});
+
+test('genuine unacknowledged execution stays overdue and exposes no false stop or output absence',async({page,request})=>{
+ await signIn(request);
+ const {orders}=await(await request.get('/api/operator/orders?filter=unresolved')).json();
+ const order=orders.find((item:{id:string})=>item.id==='72557542-5b7b-4082-b6ae-6e306ee13980');
+ expect(order).toBeTruthy();expect(order.outcome).toBe('Delivery overdue · unresolved');
+ expect(order.recovery.attempts[0].executionStoppedAt).toBeNull();
+ expect(order.recovery.attempts[0].outcome).toContain('unconfirmed');
+ expect(JSON.stringify(order.recovery.attempts)).not.toMatch(/results\/|uploadKey|invocationId|diagnosticCode/);
+ await wallet(page);await page.goto('/recovery');await page.getByRole('button',{name:'Connect wallet',exact:true}).click();await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page.getByLabel('Order view')).toBeVisible();await page.locator('.order-row').filter({hasText:order.id.slice(0,8)}).click();
+ await expect(page.getByRole('heading',{name:'Conversion attempts',exact:true})).toBeVisible();await expect(page.getByText('Delivery overdue · unresolved',{exact:true})).toBeVisible();await expect(page.getByText('Whole execution has no confirmed stop.',{exact:false})).toBeVisible();
+});
+
+test('genuine successful retry is visible to its owner and in operator action history',async({page,request})=>{
+ const {readFileSync}=await import('node:fs'),{parseEnv}=await import('node:util');
+ const payer=privateKeyToAccount(parseEnv(readFileSync(process.env.PROVISIONING_ENV_DIR+'/purchaser.env','utf8')).TEST_PURCHASER_PRIVATE_KEY as Hex);
+ const id='1e29d2bc-afd1-4f5f-a3af-d4dee236518b';
+ await signIn(request);const history=await(await request.get(`/api/operator/orders/${id}/recovery`)).json();
+ expect(history.actions.some((a:{tool:string;evidence:{status?:string}})=>a.tool==='retry_once'&&a.evidence.status==='completed')).toBe(true);
+ expect(history.evidence.attempts.map((a:{generation:number})=>a.generation)).toEqual([0,1]);
+ await wallet(page,0,5042002,payer);await page.goto('/orders');await page.getByRole('button',{name:'Connect wallet',exact:true}).click();await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page.getByRole('heading',{name:'Authenticated',exact:true})).toBeVisible();await page.locator('.order-row').filter({hasText:id.slice(0,8)}).click();
+ await expect(page.getByText('Stopped without output',{exact:false})).toBeVisible();await expect(page.getByText('Stopped · verified output',{exact:false})).toBeVisible();await expect(page.getByText('Single retry',{exact:true})).toBeVisible();await expect(page.getByText('The single purchased retry started. The original delivery deadline remains fixed.',{exact:true})).toBeVisible();
+ const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Download text result',exact:true}).click();const file=await downloaded;expect(readFileSync((await file.path())!,'utf8')).toContain('Ticket eight successful single retry');
+ await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
 });

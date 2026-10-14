@@ -1,7 +1,7 @@
 import './database-timeout';
 import {Worker} from 'node:worker_threads';
 import {randomUUID,createHash,timingSafeEqual} from 'node:crypto';
-import {and,eq,isNull,sql} from 'drizzle-orm';
+import {and,desc,eq,isNull,sql} from 'drizzle-orm';
 import {S3Client,GetObjectCommand,PutObjectCommand} from '@aws-sdk/client-s3';
 import {database} from '../lib/server/db';
 import {orders,executionAttempts,reconciliationSweeps,type Order} from '../lib/server/schema';
@@ -53,14 +53,14 @@ async function finalAbsence(attempt:typeof executionAttempts.$inferSelect) {
  try{await read(process.env.OUTPUT_BUCKET!,`results/${attempt.orderId}/${attempt.id}.txt`,AbortSignal.timeout(3000));return 'unknown' as const;}
  catch(error){return (error as {$metadata?:{httpStatusCode?:number}})?.$metadata?.httpStatusCode===404?'absent' as const:'unknown' as const;}
 }
-// Narrow worker commands never start, cancel or rerun a conversion.
+// Worker commands are pinned to a live invocation; only trusted conversion admits a retry.
 async function agentCommand(request:Request,path:string) {
  if(!allowed(request,'AGENT_CONVERSION_SECRET'))return Response.json({error:'unauthorized'},{status:401});
  const body=await request.json();
  if(request.method!=='POST'||Object.keys(body).join(',')!=='invocationId'||! /^[0-9a-f-]{36}$/.test(body.invocationId))return Response.json({error:'invalid_invocation'},{status:400});
  const assertion=await database().execute(sql`SELECT public.mend_agent_assert(${body.invocationId}::uuid) AS id`),id=String(assertion.rows[0].id);
  if(path==='/agent/inspect')return Response.json(await observation(id));
- if(!['/agent/output','/agent/restore'].includes(path))return Response.json({error:'not_found'},{status:404});
+ if(!['/agent/output','/agent/restore','/agent/retry'].includes(path))return Response.json({error:'not_found'},{status:404});
  const [order]=await database().select().from(orders).where(eq(orders.id,id));
  const attempts=await database().select().from(executionAttempts).where(eq(executionAttempts.orderId,id));
  const stopped=attempts.length>0&&attempts.every(a=>!!a.publisherFinishedAt);
@@ -75,8 +75,21 @@ async function agentCommand(request:Request,path:string) {
    if(path==='/agent/output')return Response.json({verified:true,execution:'stopped',proof});
    const restored=await database().execute(sql`SELECT public.mend_agent_restore(${body.invocationId}::uuid,${attempt.id}::uuid,${JSON.stringify(result)}::jsonb) AS restored`);
    const [fresh]=await database().select().from(orders).where(eq(orders.id,id));
-   return Response.json({restored:!!restored.rows[0].restored,proof,deliveredAt:fresh.deliveredAt?.toISOString()??null,late:!!fresh.deliveredAt&&!!fresh.paidAt&&fresh.deliveredAt.getTime()>fresh.paidAt.getTime()+fresh.terms.deliverySeconds*1000});
+   return Response.json({status:restored.rows[0].restored?'restored':'unresolved',restored:!!restored.rows[0].restored,proof,deliveredAt:fresh.deliveredAt?.toISOString()??null,late:!!fresh.deliveredAt&&!!fresh.paidAt&&fresh.deliveredAt.getTime()>fresh.paidAt.getTime()+fresh.terms.deliverySeconds*1000});
   }catch{return Response.json({verified:false,reason:'output_unknown'});}
+ }
+ if(path==='/agent/retry'){
+  const parent=attempts.find(a=>a.generation===0);
+  if(attempts.some(a=>a.generation===1))return Response.json({reason:'retry_exists'});
+  if(!parent||attempts.length!==1||parent.finalOutputCheck!=='absent'||!parent.publicationFencedAt)return Response.json({reason:'output_unknown'});
+  if(await finalAbsence(parent)!=='absent')return Response.json({reason:'output_unknown'});
+  const attemptId=randomUUID();
+  const result=await database().execute(sql`SELECT public.mend_agent_retry_claim(${body.invocationId}::uuid,${parent.id}::uuid,${attemptId}::uuid,${randomUUID()},${new Date().toISOString()}::timestamptz) AS claim`);
+  const claim=result.rows[0]?.claim as {attemptId?:string;reason?:string};
+  if(!claim?.attemptId)return Response.json(claim??{reason:'admission_unknown'});
+  // The execution has its own durable identity/deadline. A caller/tool timeout does
+  // not cancel the parent or reopen retry admission; a replay only observes it.
+  return Response.json({...await execute(order,attemptId),attemptId,generation:1});
  }
  return Response.json({verified:false,reason:'no_prepared_candidate'});
 }
@@ -86,38 +99,48 @@ async function reconcile(id:string) {
  if(deadline&&Date.now()>=deadline)await database().execute(sql`SELECT public.mend_request_stop(${id}::uuid)`);
  let attempts=await database().select().from(executionAttempts).where(eq(executionAttempts.orderId,id));
  if(!attempts.length&&order.paidAt&&deadline&&Date.now()<deadline&&order.uploadExpiresAt.getTime()>Date.now()){await convert(id);attempts=await database().select().from(executionAttempts).where(eq(executionAttempts.orderId,id));}
+ const allStopped=attempts.length>0&&attempts.every(a=>!!a.publisherFinishedAt);let outputUnknown=false;
  let outcome=order.deliveredAt?'delivered':!order.paidAt?'payment_unknown':'execution_unknown';
  for(const attempt of attempts) {
   if(attempt.stopRequestedAt)stop(attempt.id,'stop_requested');
   if(!attempt.publisherFinishedAt)continue; // Lease/deploy/timeout never proves termination.
-  if(!attempt.outputPublication){outcome=await finalAbsence(attempt)==='absent'?'stopped_no_output':'output_unknown';continue;}
+  if(!attempt.outputPublication){const absent=await finalAbsence(attempt)==='absent';outputUnknown ||= !absent;outcome=absent?'stopped_no_output':'output_unknown';continue;}
+  if(!allStopped){outputUnknown=true;continue;}
   try {
    const result=await checkedCandidate(attempt);
    if(result){const restored=await database().execute(sql`SELECT public.mend_restore_output(${attempt.id}::uuid,${JSON.stringify(result)}::jsonb) AS restored`);outcome=restored.rows[0]?.restored?'valid_output':order.deliveredAt?'delivered':'disposition_fenced';}
-  }catch{outcome='output_unknown';}
+  }catch{outcome='output_unknown';outputUnknown=true;}
  }
+ const [canonical]=await database().select({deliveredAt:orders.deliveredAt,disposition:orders.disposition}).from(orders).where(eq(orders.id,id));
+ if(canonical?.deliveredAt)outcome='delivered';else if(canonical?.disposition!=='unresolved')outcome='disposition_fenced';
+ if(!canonical?.deliveredAt&&canonical?.disposition==='unresolved'&&outcome!=='valid_output'){if(!allStopped&&attempts.length)outcome='execution_unknown';else if(outputUnknown)outcome='output_unknown';}
  await database().update(orders).set({recoveryObservation:{checkedAt:new Date().toISOString(),outcome,execution:attempts.length&&attempts.every(a=>a.publisherFinishedAt)?'stopped':'unknown',stopRequested:attempts.some(a=>!!a.stopRequestedAt)}}).where(eq(orders.id,id));
  return {status:outcome};
 }
 async function convert(id:string,experiment?:string) {
  const [order]=await database().select().from(orders).where(eq(orders.id,id));if(!order?.paidAt||!order.paymentReceipt||!order.ownerWallet)return {status:'payment_required'};
- const [existing]=await database().select().from(executionAttempts).where(and(eq(executionAttempts.orderId,id),eq(executionAttempts.generation,0)));
- if(existing)return {status:existing.state};
+ const [existing]=await database().select().from(executionAttempts).where(eq(executionAttempts.orderId,id)).orderBy(desc(executionAttempts.generation)).limit(1);
+ if(existing)return {status:existing.state,generation:existing.generation};
  const deadline=order.paidAt.getTime()+order.terms.deliverySeconds*1000;
  if(shuttingDown||Date.now()>=deadline||order.uploadExpiresAt.getTime()<=Date.now())return {status:'overdue'};
- const attemptId=randomUUID();const [claim]=await database().insert(executionAttempts).values({id:attemptId,orderId:id,generation:0,state:'running',deadline:new Date(deadline),invocationId:randomUUID()}).onConflictDoNothing().returning();if(!claim)return {status:'running'};
+ const attemptId=randomUUID();const result=await database().execute(sql`SELECT public.mend_claim_execution(${id}::uuid,${attemptId}::uuid,${randomUUID()}) AS claim`);const claim=result.rows[0]?.claim as {attemptId?:string;reason?:string;state?:string};if(!claim?.attemptId||claim.reason)return {status:claim?.state??claim?.reason??'admission_unknown'};
+ return execute(order,attemptId,experiment);
+}
+async function execute(order:Order,attemptId:string,experiment?:string){
+ const id=order.id,deadline=order.paidAt!.getTime()+order.terms.deliverySeconds*1000;
  let complete!:()=>void;const done=new Promise<void>(resolve=>{complete=resolve;});const control={abort:new AbortController(),done,worker:undefined as Worker|undefined,stopReason:undefined as string|undefined};active.set(attemptId,control);
  const timer=setTimeout(()=>{stop(attemptId,'deadline');void database().execute(sql`SELECT public.mend_request_stop(${id}::uuid)`).catch(()=>{});},Math.max(1,deadline-Date.now()));
  let pollBusy=false;const poll=setInterval(()=>{if(pollBusy)return;pollBusy=true;void database().select({requested:executionAttempts.stopRequestedAt}).from(executionAttempts).where(eq(executionAttempts.id,attemptId)).then(([a])=>{if(a?.requested)stop(attemptId,'stop_requested');}).catch(()=>{}).finally(()=>{pollBusy=false;});},1000);
  let parserLaunched=false,parserObserved=false;
  try {
-  await database().update(orders).set({status:'processing',executionStartedAt:claim.startedAt}).where(and(eq(orders.id,id),isNull(orders.deliveredAt)));
+  await database().update(orders).set({status:'processing',executionStartedAt:sql`COALESCE(${orders.executionStartedAt},clock_timestamp())`}).where(and(eq(orders.id,id),isNull(orders.deliveredAt)));
   const {bytes}=await read(process.env.UPLOAD_BUCKET!,order.uploadKey,AbortSignal.any([control.abort.signal,AbortSignal.timeout(8000)]));if(bytes.length!==order.uploadSize||hash(bytes)!==order.uploadSha256)throw new Error('upload_integrity');
   parserLaunched=true;
   if(experiment==='noack')setTimeout(()=>process.exit(77),1000);
   if(experiment==='shutdown')setTimeout(()=>process.kill(process.pid,'SIGINT'),1500);
   const parsed=await parser(bytes,deadline,attemptId,experiment==='shutdown'||experiment==='noack'?10000:0);parserObserved=true;
   await database().update(executionAttempts).set({stoppedAt:new Date(),stopReason:parsed.reason,parserExitCode:parsed.code}).where(eq(executionAttempts.id,attemptId));
+  if(experiment==='failure')throw new Error('pdf_conversion_failed');
   if(!parsed.text)throw new Error(parsed.reason==='deadline'?'deadline_stopped':'pdf_conversion_failed');
   const output=Buffer.from(parsed.text,'utf8'),key=`results/${id}/${attemptId}.txt`;
   const publication={state:'prepared' as const,key,sha256:hash(output),size:output.length,preparedAt:new Date().toISOString()};
@@ -164,7 +187,7 @@ export default {async fetch(request:Request) {
   const body=await request.json();if(!/^[0-9a-f-]{36}$/.test(body.orderId))return Response.json({error:'invalid_order'},{status:400});
   if(path==='/stop'){await database().execute(sql`SELECT public.mend_request_stop(${body.orderId}::uuid)`);return Response.json({status:'stop_requested'});}
   if(path==='/reconcile')return Response.json(await reconcile(body.orderId));
-  if(path==='/experiment') {if(!process.env.INTERRUPTION_EXPERIMENT_ORDER?.split(',').includes(body.orderId)||!['shutdown','noack','publication'].includes(body.mode))return Response.json({error:'experiment_disabled'},{status:403});return Response.json(await convert(body.orderId,body.mode));}
+  if(path==='/experiment') {if(!process.env.INTERRUPTION_EXPERIMENT_ORDER?.split(',').includes(body.orderId)||!['shutdown','noack','publication','failure'].includes(body.mode))return Response.json({error:'experiment_disabled'},{status:403});return Response.json(await convert(body.orderId,body.mode));}
   if(path!=='/')return Response.json({error:'not_found'},{status:404});
   return Response.json(await convert(body.orderId));
  }catch{return Response.json({error:'conversion_unavailable'},{status:503});}

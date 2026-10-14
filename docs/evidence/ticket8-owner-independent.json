@@ -1,0 +1,14 @@
+{
+  "orderId": "1e29d2bc-afd1-4f5f-a3af-d4dee236518b",
+  "status": 200,
+  "size": 37,
+  "sha256": "8758c5f05eb8c2c2782d1ceb958481e643fd7f55c7e63256b0618009239609e9",
+  "generations": [
+    0,
+    1
+  ],
+  "deadlinePreserved": true,
+  "termsPreserved": true,
+  "availabilityPreserved": true,
+  "expiryPreserved": true
+}
