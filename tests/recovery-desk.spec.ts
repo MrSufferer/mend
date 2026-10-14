@@ -97,3 +97,12 @@ test('unresolved queue keeps escalation first and overdue obligations in deadlin
  expect((await request.get('/api/operator/orders/------------------------------------/recovery')).status()).toBe(404);
  expect((await request.post(`/api/operator/orders/${selected.id}/investigate`,{headers:{Origin:'https://attacker.invalid'}})).status()).toBe(403);
 });
+
+test('availability label shows canonical delivery time rather than object verification time',async({page,request})=>{
+ await signIn(request);
+ const {orders}=await(await request.get('/api/operator/orders?filter=completed')).json();
+ const order=orders.find((item:{result?:{verifiedAt:string};delivery:{establishedAt:string}})=>item.result&&item.delivery.establishedAt!==item.result.verifiedAt);
+ expect(order,'A verified result with distinct publication time is required').toBeTruthy();
+ await wallet(page);await page.goto('/recovery');await page.getByRole('button',{name:'Connect wallet',exact:true}).click();await page.getByRole('button',{name:'Sign in',exact:true}).click();await expect(page.getByLabel('Order view')).toBeVisible();await page.getByLabel('Order view').selectOption('completed');await page.locator('.order-row').filter({hasText:order.id.slice(0,8)}).click();
+ const availability=page.getByText('Authenticated availability established',{exact:false});await expect(availability).toBeVisible();await expect(availability.locator('time')).toHaveAttribute('datetime',order.delivery.establishedAt);await expect(availability).toContainText(order.delivery.establishedAt);
+});

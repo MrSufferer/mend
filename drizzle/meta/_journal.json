@@ -134,6 +134,13 @@
       "when": 1791945248570,
       "tag": "0018_agent_reconciliation_fairness",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791947900810,
+      "tag": "0019_publication_availability",
+      "breakpoints": true
     }
   ]
 }
