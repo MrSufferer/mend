@@ -12,3 +12,14 @@ playwright-report/
 test-results/
 
 .mend-*.json
+
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+node_modules
+.backend-build/
+
+.receipts-build/
+
+.agent-build/

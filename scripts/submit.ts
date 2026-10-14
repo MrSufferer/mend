@@ -31,6 +31,6 @@ async function main() {
     order=await api(`/api/submissions/${submission.id}/complete`,{method:'POST'});
   }
   state.orderId=order.id; await writeFile(stateFile,JSON.stringify(state)+'\n',{mode:0o600});
-  console.log(JSON.stringify({order,recoveryState:resolve(stateFile),next:'Unpaid. Payment and wallet authentication are separate dependent-ticket work.'},null,2));
+  console.log(JSON.stringify({order,recoveryState:resolve(stateFile),next:'Run npm run purchase with this origin and private state file to pay 1 test USDC.'},null,2));
 }
 main().catch(error=>{console.error(error instanceof Error?error.message:'Submission failed');process.exitCode=1;});

@@ -13,13 +13,19 @@
     "submit": "tsx scripts/submit.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "storage:purge-staging": "tsx scripts/purge-staging.ts"
+    "storage:purge-staging": "tsx scripts/purge-staging.ts",
+    "purchase": "tsx scripts/purchase.ts",
+    "test:payments": "playwright test tests/payments.spec.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1150.0",
     "@aws-sdk/s3-request-presigner": "3.1150.0",
     "@neondatabase/serverless": "1.2.0",
+    "@openrouter/ai-sdk-provider": "3.1.0",
     "@tanstack/react-query": "5.104.2",
+    "@x402/core": "2.28.0",
+    "@x402/evm": "2.28.0",
+    "ai": "7.0.139",
     "drizzle-orm": "0.45.4",
     "lucide-react": "1.55.0",
     "next": "16.4.0",
@@ -27,7 +33,8 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "viem": "2.57.5",
-    "wagmi": "3.7.7"
+    "wagmi": "3.7.7",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",
@@ -35,6 +42,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "drizzle-kit": "0.31.11",
+    "esbuild": "0.25.12",
     "pdf-lib": "1.17.1",
     "tsx": "4.23.15",
     "typescript": "7.0.2"

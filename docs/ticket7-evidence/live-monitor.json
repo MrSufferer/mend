@@ -1,0 +1,102 @@
+{
+  "status": 200,
+  "orderId": "72557542-5b7b-4082-b6ae-6e306ee13980",
+  "case": {
+    "orderId": "72557542-5b7b-4082-b6ae-6e306ee13980",
+    "callsUsed": 4,
+    "escalation": null,
+    "observeAt": "2026-10-14T02:53:48.146Z",
+    "updatedAt": "2026-10-14T02:52:53.253Z"
+  },
+  "invocations": [
+    {
+      "id": "12b2e659-1394-4cdf-9fd8-9fd9338eba21",
+      "orderId": "72557542-5b7b-4082-b6ae-6e306ee13980",
+      "startedAt": "2026-10-14T02:52:44.543Z",
+      "deadline": "2026-10-14T02:53:44.544Z",
+      "finishedAt": "2026-10-14T02:52:53.253Z",
+      "outcome": "investigated"
+    }
+  ],
+  "calls": [
+    {
+      "id": "7e0f72e2-d30c-48d9-8d43-ae16d36f2806",
+      "invocationId": "12b2e659-1394-4cdf-9fd8-9fd9338eba21",
+      "orderId": "72557542-5b7b-4082-b6ae-6e306ee13980",
+      "ordinal": 1,
+      "claimedAt": "2026-10-14T02:52:44.580Z"
+    },
+    {
+      "id": "dd2b074f-8504-42b1-b977-9d8354c5fe18",
+      "invocationId": "12b2e659-1394-4cdf-9fd8-9fd9338eba21",
+      "orderId": "72557542-5b7b-4082-b6ae-6e306ee13980",
+      "ordinal": 2,
+      "claimedAt": "2026-10-14T02:52:45.819Z"
+    },
+    {
+      "id": "fd821d4b-640c-4664-9168-ed6981fbfa10",
+      "invocationId": "12b2e659-1394-4cdf-9fd8-9fd9338eba21",
+      "orderId": "72557542-5b7b-4082-b6ae-6e306ee13980",
+      "ordinal": 3,
+      "claimedAt": "2026-10-14T02:52:46.986Z"
+    },
+    {
+      "id": "ed958f69-e862-4b9c-aca5-56dc3ee86235",
+      "invocationId": "12b2e659-1394-4cdf-9fd8-9fd9338eba21",
+      "orderId": "72557542-5b7b-4082-b6ae-6e306ee13980",
+      "ordinal": 4,
+      "claimedAt": "2026-10-14T02:52:48.152Z"
+    }
+  ],
+  "actions": [
+    {
+      "tool": "inspect_order",
+      "outcome": "observed",
+      "createdAt": "2026-10-14T02:52:45.811Z",
+      "evidence": {
+        "paidAt": "2026-10-14T02:50:14.000Z",
+        "result": null,
+        "status": "processing",
+        "orderId": "72557542-5b7b-4082-b6ae-6e306ee13980",
+        "deadline": "2026-10-14T02:52:14.000Z",
+        "deliveredAt": null,
+        "disposition": "unresolved",
+        "amountAtomic": "1000000",
+        "uploadExpired": false,
+        "paymentConfirmed": true,
+        "paymentTransaction": "0x66505f0a1922fe93ca6bce67a27283df7853adfe6d50cf5fd91ded7e131fe087"
+      }
+    },
+    {
+      "tool": "inspect_execution",
+      "outcome": "observed",
+      "createdAt": "2026-10-14T02:52:46.975Z",
+      "evidence": {
+        "attempts": [
+          {
+            "id": "c5cfa675-dd0c-48b4-bbbc-bf7126556c83",
+            "state": "running",
+            "generation": 0,
+            "publication": null,
+            "parserExitedAt": null,
+            "stopRequestedAt": null,
+            "finalOutputCheck": null,
+            "executionStoppedAt": null,
+            "publicationFencedAt": null
+          }
+        ],
+        "execution": "unknown",
+        "reconciliation": null
+      }
+    },
+    {
+      "tool": "observe_later",
+      "outcome": "observed",
+      "createdAt": "2026-10-14T02:52:48.146Z",
+      "evidence": {
+        "seconds": 60,
+        "scheduled": true
+      }
+    }
+  ]
+}
