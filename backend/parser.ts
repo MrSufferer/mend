@@ -1,9 +1,10 @@
 import {parentPort,workerData} from 'node:worker_threads';
 // The parser receives bytes only. Its environment excludes all service credentials.
 async function parse() {
+ if(workerData.holdMs)await new Promise(resolve=>setTimeout(resolve,workerData.holdMs));
  await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
  const {getDocument}=await import('pdfjs-dist/legacy/build/pdf.mjs');
- const task=getDocument({data:new Uint8Array(workerData),disableFontFace:true,stopAtErrors:true,verbosity:0});
+ const task=getDocument({data:new Uint8Array(workerData.bytes),disableFontFace:true,stopAtErrors:true,verbosity:0});
  try {
   const pdf=await task.promise;if(pdf.numPages<1||pdf.numPages>50||await pdf.getPermissions()!==null)throw new Error('unsupported_pdf');
   let text='';

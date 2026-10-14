@@ -1,69 +1,143 @@
+import './database-timeout';
 import {Worker} from 'node:worker_threads';
 import {randomUUID,createHash,timingSafeEqual} from 'node:crypto';
 import {and,eq,isNull,sql} from 'drizzle-orm';
 import {S3Client,GetObjectCommand,PutObjectCommand} from '@aws-sdk/client-s3';
 import {database} from '../lib/server/db';
-import {orders,executionAttempts} from '../lib/server/schema';
+import {orders,executionAttempts,reconciliationSweeps,type Order} from '../lib/server/schema';
 const hash=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
 const s3=()=>new S3Client({endpoint:process.env.AWS_ENDPOINT_URL_S3,region:process.env.AWS_REGION,forcePathStyle:true,requestChecksumCalculation:'WHEN_REQUIRED',responseChecksumValidation:'WHEN_REQUIRED'});
-async function read(bucket:string,key:string) {
- const response=await s3().send(new GetObjectCommand({Bucket:bucket,Key:key}));if(!response.Body||!response.ContentLength||response.ContentLength>10*1024*1024)throw new Error('object_invalid');
- const chunks:Uint8Array[]=[];let size=0;for await(const chunk of response.Body as AsyncIterable<Uint8Array>){size+=chunk.length;if(size>10*1024*1024)throw new Error('object_limit');chunks.push(chunk);}return {bytes:Buffer.concat(chunks),createdAt:response.LastModified};
+const active=new Map<string,{abort:AbortController;worker?:Worker;stopReason?:string;done:Promise<void>}>();
+let shuttingDown=false;
+function stop(id:string,reason:string) {const a=active.get(id);if(a){a.stopReason??=reason;a.abort.abort();void a.worker?.terminate();}}
+process.on('SIGINT',()=>{shuttingDown=true;for(const id of active.keys())stop(id,'host_shutdown');void Promise.allSettled([...active.values()].map(a=>a.done)).then(()=>process.exit(0));});
+async function read(bucket:string,key:string,abort?:AbortSignal) {
+ const response=await s3().send(new GetObjectCommand({Bucket:bucket,Key:key}),{abortSignal:abort??AbortSignal.timeout(8000)});
+ if(!response.Body||!response.ContentLength||response.ContentLength>10*1024*1024)throw new Error('object_invalid');
+ const chunks:Uint8Array[]=[];let size=0;
+ for await(const chunk of response.Body as AsyncIterable<Uint8Array>){size+=chunk.length;if(size>10*1024*1024)throw new Error('object_limit');chunks.push(chunk);}
+ return {bytes:Buffer.concat(chunks),createdAt:response.LastModified};
 }
-async function parser(bytes:Uint8Array,deadline:number) {
- const worker=new Worker(new URL('./parser.mjs',import.meta.url),{workerData:bytes,env:{},resourceLimits:{maxOldGenerationSizeMb:256}});
+async function parser(bytes:Uint8Array,deadline:number,attemptId:string,holdMs:number) {
+ const a=active.get(attemptId)!;
+ const worker=new Worker(new URL('./parser.mjs',import.meta.url),{workerData:{bytes,holdMs},env:{},resourceLimits:{maxOldGenerationSizeMb:256}});a.worker=worker;
  let value:{text?:string,error?:string}|undefined,reason='completed';
  const exit=new Promise<number>(resolve=>worker.once('exit',resolve));
  worker.on('message',message=>{value=message;});worker.on('error',()=>{reason='parser_error';});
- const timer=setTimeout(()=>{reason='deadline';void worker.terminate();},Math.max(1,deadline-Date.now()));
- const code=await exit;clearTimeout(timer);
+ const timer=setTimeout(()=>stop(attemptId,'deadline'),Math.max(1,deadline-Date.now()));
+ if(a.stopReason)void worker.terminate();
+ const code=await exit;clearTimeout(timer);a.worker=undefined;reason=a.stopReason??reason;
  return {code,reason,text:code===0&&reason==='completed'&&!value?.error?value?.text:undefined};
 }
 function allowed(request:Request) {
  const expected=process.env.CONVERSION_SERVICE_SECRET||'',provided=request.headers.get('Authorization')?.replace(/^Bearer /,'')||'';
  return expected.length>=32&&provided.length===expected.length&&timingSafeEqual(Buffer.from(expected),Buffer.from(provided));
 }
-async function convert(id:string) {
+async function observation(id:string) {
+ const [order]=await database().select().from(orders).where(eq(orders.id,id));if(!order)return null;
+ const attempts=await database().select().from(executionAttempts).where(eq(executionAttempts.orderId,id));
+ return {order:{id,deadline:order.paidAt?new Date(order.paidAt.getTime()+order.terms.deliverySeconds*1000).toISOString():null,terms:order.terms,deliveredAt:order.deliveredAt,overdue:!!order.paidAt&&!order.deliveredAt&&Date.now()>=order.paidAt.getTime()+order.terms.deliverySeconds*1000},
+ execution:attempts.length&&attempts.every(a=>a.publisherFinishedAt)?'stopped':'unknown',reconciliation:order.recoveryObservation,
+ attempts:attempts.map(a=>({id:a.id,generation:a.generation,state:a.state,parserExitedAt:a.stoppedAt,executionStoppedAt:a.publisherFinishedAt,stopRequestedAt:a.stopRequestedAt,publicationFencedAt:a.publicationFencedAt,finalOutputCheck:a.finalOutputCheck,publication:a.outputPublication?{state:a.outputPublication.state,preparedAt:a.outputPublication.preparedAt}:null}))};
+}
+async function checkedCandidate(attempt:typeof executionAttempts.$inferSelect) {
+ const p=attempt.outputPublication;if(!p)return null;
+ const stored=await read(process.env.OUTPUT_BUCKET!,p.key);
+ if(stored.bytes.length!==p.size||hash(stored.bytes)!==p.sha256||!stored.bytes.toString('utf8').trim()||!stored.createdAt)throw new Error('output_integrity');
+ const createdAt=stored.createdAt,expiresAt=new Date(createdAt.getTime()+7*86400000);
+ if(expiresAt.getTime()<=Date.now())throw new Error('output_expired');
+ return {key:p.key,sha256:p.sha256,size:p.size,createdAt:createdAt.toISOString(),expiresAt:expiresAt.toISOString(),verifiedAt:new Date().toISOString()};
+}
+async function finalAbsence(attempt:typeof executionAttempts.$inferSelect) {
+ // Deterministic private key is checked even when no publication was prepared.
+ try{await read(process.env.OUTPUT_BUCKET!,`results/${attempt.orderId}/${attempt.id}.txt`,AbortSignal.timeout(3000));return 'unknown' as const;}
+ catch(error){return (error as {$metadata?:{httpStatusCode?:number}})?.$metadata?.httpStatusCode===404?'absent' as const:'unknown' as const;}
+}
+async function reconcile(id:string) {
+ const [order]=await database().select().from(orders).where(eq(orders.id,id));if(!order)return {status:'not_found'};
+ const deadline=order.paidAt?order.paidAt.getTime()+order.terms.deliverySeconds*1000:null;
+ if(deadline&&Date.now()>=deadline)await database().execute(sql`SELECT public.mend_request_stop(${id}::uuid)`);
+ let attempts=await database().select().from(executionAttempts).where(eq(executionAttempts.orderId,id));
+ if(!attempts.length&&order.paidAt&&deadline&&Date.now()<deadline&&order.uploadExpiresAt.getTime()>Date.now()){await convert(id);attempts=await database().select().from(executionAttempts).where(eq(executionAttempts.orderId,id));}
+ let outcome=order.deliveredAt?'delivered':!order.paidAt?'payment_unknown':'execution_unknown';
+ for(const attempt of attempts) {
+  if(attempt.stopRequestedAt)stop(attempt.id,'stop_requested');
+  if(!attempt.publisherFinishedAt)continue; // Lease/deploy/timeout never proves termination.
+  if(!attempt.outputPublication){outcome=await finalAbsence(attempt)==='absent'?'stopped_no_output':'output_unknown';continue;}
+  try {
+   const result=await checkedCandidate(attempt);
+   if(result){const restored=await database().execute(sql`SELECT public.mend_restore_output(${attempt.id}::uuid,${JSON.stringify(result)}::jsonb) AS restored`);outcome=restored.rows[0]?.restored?'valid_output':order.deliveredAt?'delivered':'disposition_fenced';}
+  }catch{outcome='output_unknown';}
+ }
+ await database().update(orders).set({recoveryObservation:{checkedAt:new Date().toISOString(),outcome,execution:attempts.length&&attempts.every(a=>a.publisherFinishedAt)?'stopped':'unknown',stopRequested:attempts.some(a=>!!a.stopRequestedAt)}}).where(eq(orders.id,id));
+ return {status:outcome};
+}
+async function convert(id:string,experiment?:string) {
  const [order]=await database().select().from(orders).where(eq(orders.id,id));if(!order?.paidAt||!order.paymentReceipt||!order.ownerWallet)return {status:'payment_required'};
  const [existing]=await database().select().from(executionAttempts).where(and(eq(executionAttempts.orderId,id),eq(executionAttempts.generation,0)));
  if(existing)return {status:existing.state};
  const deadline=order.paidAt.getTime()+order.terms.deliverySeconds*1000;
- if(Date.now()>=deadline||order.uploadExpiresAt.getTime()<=Date.now())return {status:'overdue'};
- const attemptId=randomUUID();const [claim]=await database().insert(executionAttempts).values({id:attemptId,orderId:id,generation:0,state:'running'}).onConflictDoNothing().returning();if(!claim)return {status:'running'};
- await database().update(orders).set({status:'processing',executionStartedAt:claim.startedAt}).where(and(eq(orders.id,id),isNull(orders.deliveredAt)));
- let stopped=false;
+ if(shuttingDown||Date.now()>=deadline||order.uploadExpiresAt.getTime()<=Date.now())return {status:'overdue'};
+ const attemptId=randomUUID();const [claim]=await database().insert(executionAttempts).values({id:attemptId,orderId:id,generation:0,state:'running',deadline:new Date(deadline),invocationId:randomUUID()}).onConflictDoNothing().returning();if(!claim)return {status:'running'};
+ let complete!:()=>void;const done=new Promise<void>(resolve=>{complete=resolve;});const control={abort:new AbortController(),done,worker:undefined as Worker|undefined,stopReason:undefined as string|undefined};active.set(attemptId,control);
+ const timer=setTimeout(()=>{stop(attemptId,'deadline');void database().execute(sql`SELECT public.mend_request_stop(${id}::uuid)`).catch(()=>{});},Math.max(1,deadline-Date.now()));
+ let pollBusy=false;const poll=setInterval(()=>{if(pollBusy)return;pollBusy=true;void database().select({requested:executionAttempts.stopRequestedAt}).from(executionAttempts).where(eq(executionAttempts.id,attemptId)).then(([a])=>{if(a?.requested)stop(attemptId,'stop_requested');}).catch(()=>{}).finally(()=>{pollBusy=false;});},1000);
+ let parserLaunched=false,parserObserved=false;
  try {
-  const {bytes}=await read(process.env.UPLOAD_BUCKET!,order.uploadKey);if(bytes.length!==order.uploadSize||hash(bytes)!==order.uploadSha256)throw new Error('upload_integrity');
-  const parsed=await parser(bytes,deadline);stopped=true;
+  await database().update(orders).set({status:'processing',executionStartedAt:claim.startedAt}).where(and(eq(orders.id,id),isNull(orders.deliveredAt)));
+  const {bytes}=await read(process.env.UPLOAD_BUCKET!,order.uploadKey,AbortSignal.any([control.abort.signal,AbortSignal.timeout(8000)]));if(bytes.length!==order.uploadSize||hash(bytes)!==order.uploadSha256)throw new Error('upload_integrity');
+  parserLaunched=true;
+  if(experiment==='noack')setTimeout(()=>process.exit(77),1000);
+  if(experiment==='shutdown')setTimeout(()=>process.kill(process.pid,'SIGINT'),1500);
+  const parsed=await parser(bytes,deadline,attemptId,experiment==='shutdown'||experiment==='noack'?10000:0);parserObserved=true;
   await database().update(executionAttempts).set({stoppedAt:new Date(),stopReason:parsed.reason,parserExitCode:parsed.code}).where(eq(executionAttempts.id,attemptId));
   if(!parsed.text)throw new Error(parsed.reason==='deadline'?'deadline_stopped':'pdf_conversion_failed');
   const output=Buffer.from(parsed.text,'utf8'),key=`results/${id}/${attemptId}.txt`;
-  // Durable candidate is written before storage: an unindexed candidate is never absence proof.
   const publication={state:'prepared' as const,key,sha256:hash(output),size:output.length,preparedAt:new Date().toISOString()};
-  await database().update(executionAttempts).set({outputPublication:publication}).where(eq(executionAttempts.id,attemptId));
-  const putStartedAt=new Date();await s3().send(new PutObjectCommand({Bucket:process.env.OUTPUT_BUCKET!,Key:key,Body:output,ContentType:'text/plain; charset=utf-8'}));
-  const stored=await read(process.env.OUTPUT_BUCKET!,key),verified=stored.bytes;if(hash(verified)!==hash(output)||!verified.toString('utf8').trim())throw new Error('output_integrity');
-  const createdAt=stored.createdAt??putStartedAt,verifiedAt=new Date(),result={key,sha256:hash(output),size:output.length,createdAt:createdAt.toISOString(),expiresAt:new Date(createdAt.getTime()+7*86400000).toISOString(),verifiedAt:verifiedAt.toISOString()};
-  await database().batch([
-   database().update(executionAttempts).set({state:'completed',outputPublication:{...publication,state:'committed'}}).where(eq(executionAttempts.id,attemptId)),
-   database().update(orders).set({status:'delivered',result,deliveredAt:verifiedAt}).where(and(eq(orders.id,id),isNull(orders.deliveredAt))),
-  ]);return {status:'completed'};
- }catch(error) {
-  const diagnosticCode=error instanceof Error&&['upload_integrity','deadline_stopped','pdf_conversion_failed','output_integrity'].includes(error.message)?error.message:'infrastructure_error';
-  // stoppedAt is parser-only evidence, never whole-attempt or publication stop proof.
-  // No parser was launched on an input failure. A parser return proves its thread exited.
+  const prepared=await database().execute(sql`SELECT public.mend_prepare_output(${attemptId}::uuid,${JSON.stringify(publication)}::jsonb) AS prepared`);
+  if(!prepared.rows[0]?.prepared)throw new Error('publication_fenced');
+  await s3().send(new PutObjectCommand({Bucket:process.env.OUTPUT_BUCKET!,Key:key,Body:output,ContentType:'text/plain; charset=utf-8'}),{abortSignal:AbortSignal.any([control.abort.signal,AbortSignal.timeout(8000)])});
   const [attempt]=await database().select().from(executionAttempts).where(eq(executionAttempts.id,attemptId));
-  await database().update(executionAttempts).set({state:'failed',diagnosticCode,...(!stopped&&!attempt.stoppedAt?{stoppedAt:new Date(),stopReason:'before_parser'}:{})}).where(eq(executionAttempts.id,attemptId));
-  await database().update(orders).set({status:'processing_failed'}).where(and(eq(orders.id,id),isNull(orders.deliveredAt)));return {status:'failed'};
- }
+  const result=await checkedCandidate(attempt);
+  if(experiment==='publication')throw new Error('injected_publication_interruption');
+  await database().execute(sql`SELECT public.mend_finish_execution(${attemptId}::uuid,'valid',${JSON.stringify(result)}::jsonb)`);return {status:'completed'};
+ }catch(error) {
+  // A failed constructor / input read has no thread. A launched thread requires observed exit.
+  if(parserLaunched&&!parserObserved&&control.worker){await control.worker.terminate();parserObserved=true;await database().update(executionAttempts).set({stoppedAt:new Date(),stopReason:control.stopReason??'parser_terminated',parserExitCode:1}).where(eq(executionAttempts.id,attemptId));}
+  if(!parserLaunched)await database().update(executionAttempts).set({stoppedAt:new Date(),stopReason:'before_parser'}).where(eq(executionAttempts.id,attemptId));
+  const [attempt]=await database().select().from(executionAttempts).where(eq(executionAttempts.id,attemptId));
+  if(attempt.stoppedAt){const finalCheck=attempt.outputPublication?'unknown':await finalAbsence(attempt);await database().execute(sql`SELECT public.mend_finish_execution(${attemptId}::uuid,${finalCheck},NULL)`);}
+  await database().update(executionAttempts).set({diagnosticCode:error instanceof Error&&['upload_integrity','deadline_stopped','pdf_conversion_failed'].includes(error.message)?error.message:'infrastructure_error'}).where(eq(executionAttempts.id,attemptId));
+  await database().update(orders).set({status:'processing_failed'}).where(and(eq(orders.id,id),isNull(orders.deliveredAt)));return {status:'stopped'};
+ }finally{clearTimeout(timer);clearInterval(poll);active.delete(attemptId);complete();}
+}
+async function scheduled(request:Request) {
+ const body=await request.json(),header=request.headers.get('X-Neon-Trigger-Invocation-Id');
+ if(!header||header!==body.invocation_id||body.version!==1||body.trigger?.type!=='schedule'||body.trigger.id!==process.env.RECONCILIATION_TRIGGER_ID||!Number.isFinite(Date.parse(body.data?.scheduled_at)))return Response.json({error:'invalid_trigger'},{status:403});
+ const [claimed]=await database().insert(reconciliationSweeps).values({id:body.invocation_id,scheduledAt:new Date(body.data.scheduled_at)}).onConflictDoNothing().returning();if(!claimed)return Response.json({status:'already_observed'});
+ const pending=await database().select({id:orders.id}).from(orders).where(sql`${orders.deliveredAt} IS NULL AND (${orders.paidAt} IS NOT NULL OR EXISTS (SELECT 1 FROM public.payment_attempts p WHERE p.order_id=${orders.id}))`).orderBy(sql`${orders.recoveryObservation}->>'checkedAt' ASC NULLS FIRST`,orders.createdAt).limit(3);
+ const started=Date.now();let observed=0;
+ for(const order of pending){if(Date.now()-started>=30000)break;try{await reconcile(order.id);}catch{await database().update(orders).set({recoveryObservation:{checkedAt:new Date().toISOString(),outcome:'infrastructure_unknown',execution:'unknown'}}).where(eq(orders.id,order.id));}observed++;}
+ await database().update(reconciliationSweeps).set({completedAt:new Date(),observedOrders:observed}).where(eq(reconciliationSweeps.id,claimed.id));
+ return Response.json({status:'reconciled',observed});
 }
 export default {async fetch(request:Request) {
- if(!allowed(request))return Response.json({error:'unauthorized'},{status:401});if(request.method!=='POST')return Response.json({error:'method_not_allowed'},{status:405});
+ const url=new URL(request.url),path=url.pathname.replace(/\/+/g,'/');
+ if(path==='/scheduled'&&request.method==='POST'){try{return await scheduled(request);}catch{return Response.json({error:'reconciliation_unavailable'},{status:503});}}
+ if(!allowed(request))return Response.json({error:'unauthorized'},{status:401});
  try {
-  if(new URL(request.url).pathname==='/probe') {
+  if(request.method==='GET'&&path==='/status'){const id=url.searchParams.get('orderId')||'';if(!/^[0-9a-f-]{36}$/.test(id))return Response.json({error:'invalid_order'},{status:400});const result=await observation(id);return Response.json(result??{error:'not_found'},{status:result?200:404});}
+  if(request.method==='GET'&&path==='/sweeps')return Response.json(await database().select().from(reconciliationSweeps).orderBy(sql`${reconciliationSweeps.startedAt} DESC`).limit(5));
+  if(request.method!=='POST')return Response.json({error:'method_not_allowed'},{status:405});
+  if(path==='/probe') {
    const identity=await database().execute(sql`SELECT current_user AS role, has_table_privilege(current_user,'public.auth_sessions','SELECT') AS session_access, has_column_privilege(current_user,'public.orders','paid_at','UPDATE') AS payment_write`);
    return Response.json({identity:identity.rows[0],signingCredentialsAbsent:!Object.keys(process.env).some(name=>/PRIVATE_KEY|OPENROUTER|SESSION_SECRET/.test(name))});
   }
-  const body=await request.json();if(!/^[0-9a-f-]{36}$/.test(body.orderId))return Response.json({error:'invalid_order'},{status:400});return Response.json(await convert(body.orderId));
+  const body=await request.json();if(!/^[0-9a-f-]{36}$/.test(body.orderId))return Response.json({error:'invalid_order'},{status:400});
+  if(path==='/stop'){await database().execute(sql`SELECT public.mend_request_stop(${body.orderId}::uuid)`);return Response.json({status:'stop_requested'});}
+  if(path==='/reconcile')return Response.json(await reconcile(body.orderId));
+  if(path==='/experiment') {if(!process.env.INTERRUPTION_EXPERIMENT_ORDER?.split(',').includes(body.orderId)||!['shutdown','noack','publication'].includes(body.mode))return Response.json({error:'experiment_disabled'},{status:403});return Response.json(await convert(body.orderId,body.mode));}
+  if(path!=='/')return Response.json({error:'not_found'},{status:404});
+  return Response.json(await convert(body.orderId));
  }catch{return Response.json({error:'conversion_unavailable'},{status:503});}
 }};

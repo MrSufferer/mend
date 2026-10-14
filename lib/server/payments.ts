@@ -1,46 +1,18 @@
 import {HTTPFacilitatorClient} from '@x402/core/server';
 import type {PaymentPayload,PaymentRequirements} from '@x402/core/types';
 import {and,eq,isNull,sql} from 'drizzle-orm';
-import {createPublicClient,http,parseAbi,decodeEventLog,type Address,type Hex} from 'viem';
+import {createPublicClient,http} from 'viem';
+import {confirmReceipt} from './payment-receipts';
 import {database} from './db';
 import {orders,paymentAttempts,type PaymentAttempt} from './schema';
 import {presentOrder} from './orders';
 import {ApiError,capabilityHash,json} from './http';
 import {startConversion} from './conversion';
 export const arcUsdc='0x3600000000000000000000000000000000000000';
-const abi=parseAbi(['event AuthorizationUsed(address indexed authorizer, bytes32 indexed nonce)','event Transfer(address indexed from, address indexed to, uint256 value)']);
+function rpcClient() {if(!process.env.ARC_RPC_URL)throw new Error('Server RPC required');return createPublicClient({transport:http(process.env.ARC_RPC_URL,{timeout:10000})});}
 export function paymentRequirements():PaymentRequirements {
  if(!/^0x[0-9a-fA-F]{40}$/.test(process.env.MERCHANT_ADDRESS||'')) throw new Error('MERCHANT_ADDRESS required');
  return {scheme:'exact',network:'eip155:5042002',asset:arcUsdc,amount:'1000000',payTo:process.env.MERCHANT_ADDRESS!,maxTimeoutSeconds:300,extra:{name:'USDC',version:'2'}};
-}
-function rpcClient() {if(!process.env.ARC_RPC_URL) throw new Error('Server RPC required');return createPublicClient({transport:http(process.env.ARC_RPC_URL,{timeout:10000})});}
-async function confirm(attempt:PaymentAttempt) {
- const rpc=rpcClient(); if(await rpc.getChainId()!==5042002) throw new Error('Wrong network');
- let transaction=attempt.transaction as Hex|null;
- if(!transaction) {
-  const latest=await rpc.getBlockNumber(),from=BigInt(attempt.scanBlock),to=latest<from+BigInt(1999)?latest:from+BigInt(1999);
-  if(to<from)return;
-  const logs=await rpc.getLogs({address:arcUsdc,event:abi[0],args:{authorizer:attempt.payer as Address,nonce:attempt.nonce as Hex},fromBlock:from,toBlock:to,strict:true});
-  transaction=logs[0]?.transactionHash??null;
-  if(!transaction) {await database().update(paymentAttempts).set({scanBlock:(to+BigInt(1)).toString()}).where(eq(paymentAttempts.orderId,attempt.orderId));return;}
- }
- const receipt=await rpc.getTransactionReceipt({hash:transaction});if(receipt.status!=='success')return;
- let used=false,paid=false;
- for(const log of receipt.logs) {
-  if(log.address.toLowerCase()!==arcUsdc)continue;
-  try {const event=decodeEventLog({abi,data:log.data,topics:log.topics}) as {eventName:'AuthorizationUsed',args:{authorizer:Address,nonce:Hex}}|{eventName:'Transfer',args:{from:Address,to:Address,value:bigint}};
-   if(event.eventName==='AuthorizationUsed')used ||= event.args.authorizer.toLowerCase()===attempt.payer&&event.args.nonce.toLowerCase()===attempt.nonce;
-   if(event.eventName==='Transfer')paid ||= event.args.from.toLowerCase()===attempt.payer&&event.args.to.toLowerCase()===attempt.requirements.payTo.toLowerCase()&&event.args.value===BigInt(1000000);
-  }catch {/* unrelated token log */}
- }
- if(!used||!paid)throw new Error('Receipt does not prove this authorization and transfer');
- const block=await rpc.getBlock({blockHash:receipt.blockHash});const paidAt=new Date(Number(block.timestamp)*1000);
- const paymentReceipt={status:'success' as const,blockNumber:receipt.blockNumber.toString(),blockHash:receipt.blockHash,amountAtomic:'1000000',decimals:6 as const,gasUsed:receipt.gasUsed.toString(),effectiveGasPrice:receipt.effectiveGasPrice.toString()};
- await database().batch([
-  database().update(paymentAttempts).set({transaction}).where(eq(paymentAttempts.orderId,attempt.orderId)),
-  database().update(orders).set({paymentReceipt}).where(eq(orders.id,attempt.orderId)),
-  database().update(orders).set({status:'paid',payerWallet:attempt.payer,ownerWallet:attempt.payer,paymentTransaction:transaction,paidAt}).where(and(eq(orders.id,attempt.orderId),isNull(orders.paidAt))),
- ]);
 }
 export async function purchase(request:Request,id:string) {
  if(!/^[0-9a-f-]{36}$/.test(id))throw new ApiError(404,'order_not_found','Order not found.');
@@ -78,9 +50,9 @@ export async function purchase(request:Request,id:string) {
  if(!attempt)throw new Error('Missing attempt');
  await database().update(orders).set({status:'payment_pending'}).where(and(eq(orders.id,id),isNull(orders.paidAt)));
  // Persist one signed authorization before any settlement call. All retries reuse its nonce.
- if(order.paidAt&&!order.paymentReceipt)await confirm(attempt);
+ if(order.paidAt&&!order.paymentReceipt)await confirmReceipt(attempt);
  if(!order.paidAt) {
-  await confirm(attempt);
+  await confirmReceipt(attempt);
   const [current]=await database().select().from(orders).where(eq(orders.id,id));
   if(!current.paidAt) {
    const [claimed]=await database().update(paymentAttempts).set({submittedAt:new Date()}).where(and(eq(paymentAttempts.orderId,id),sql`(${paymentAttempts.submittedAt} IS NULL OR ${paymentAttempts.submittedAt}<now()-interval '30 seconds')`)).returning();
@@ -88,7 +60,7 @@ export async function purchase(request:Request,id:string) {
     try {const settled=await new HTTPFacilitatorClient({url:process.env.X402_FACILITATOR_URL,timeoutMs:10000}).settle(attempt.payload,attempt.requirements);
      if(/^0x[0-9a-fA-F]{64}$/.test(settled.transaction))await database().update(paymentAttempts).set({transaction:settled.transaction.toLowerCase()}).where(eq(paymentAttempts.orderId,id));
     }catch {/* Outcome unknown: reconcile original nonce; never create a new payment. */}
-    [attempt]=await database().select().from(paymentAttempts).where(eq(paymentAttempts.orderId,id));await confirm(attempt);
+    [attempt]=await database().select().from(paymentAttempts).where(eq(paymentAttempts.orderId,id));await confirmReceipt(attempt);
    }
   }
  }

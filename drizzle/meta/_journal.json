@@ -50,6 +50,48 @@
       "when": 1791936783613,
       "tag": "0006_nervous_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791937607512,
+      "tag": "0007_milky_silver_centurion",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791937708621,
+      "tag": "0008_icy_satana",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791937984145,
+      "tag": "0009_interruption_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791938126976,
+      "tag": "0010_payment_reconciler",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791938154797,
+      "tag": "0011_receipt_observation",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791938620524,
+      "tag": "0012_delivery_disposition",
+      "breakpoints": true
     }
   ]
 }
