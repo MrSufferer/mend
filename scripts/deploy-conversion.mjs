@@ -5,6 +5,8 @@ import {parseEnv} from 'node:util';
 import {randomBytes} from 'node:crypto';
 import {homedir} from 'node:os';
 import {execFileSync} from 'node:child_process';
+const slug=process.env.CONVERSION_FUNCTION_SLUG||'mendconversion';
+if(!/^[a-z0-9]{1,20}$/.test(slug))throw new Error('Invalid slug');
 const inventory=process.env.MEND_CREDENTIAL_DIRECTORY;if(!inventory)throw new Error('MEND_CREDENTIAL_DIRECTORY required');
 const load=async name=>parseEnv(await readFile(`${inventory}/${name}.env`,'utf8'));
 const publicConfig=JSON.parse(await readFile('docs/provisioning-status.json','utf8'));
@@ -14,13 +16,15 @@ const servicePath=process.env.CONVERSION_SERVICE_ENV||'/private/tmp/mend-convers
 let service;try{service=parseEnv(await readFile(servicePath,'utf8'));}catch{service={CONVERSION_SERVICE_SECRET:randomBytes(32).toString('hex')};}
 const db=await load('database-conversion'),storage=await load('storage-conversion');
 const environment={DATABASE_URL:db.DATABASE_URL,DATABASE_URL_UNPOOLED:db.DATABASE_URL_UNPOOLED,AWS_ACCESS_KEY_ID:storage.AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY:storage.AWS_SECRET_ACCESS_KEY,AWS_ENDPOINT_URL_S3:storage.AWS_ENDPOINT_URL_S3,AWS_REGION:storage.AWS_REGION,UPLOAD_BUCKET:publicConfig.public_configuration.UPLOAD_BUCKET,OUTPUT_BUCKET:publicConfig.public_configuration.OUTPUT_BUCKET,CONVERSION_SERVICE_SECRET:service.CONVERSION_SERVICE_SECRET};
-if(Object.values(environment).some(value=>!value))throw new Error('Incomplete isolated conversion credentials');
+if(Object.hasOwn(process.env,'RECONCILIATION_TRIGGER_ID'))environment.RECONCILIATION_TRIGGER_ID=process.env.RECONCILIATION_TRIGGER_ID;
+if(Object.hasOwn(process.env,'INTERRUPTION_EXPERIMENT_ORDER'))environment.INTERRUPTION_EXPERIMENT_ORDER=process.env.INTERRUPTION_EXPERIMENT_ORDER;
+if(Object.entries(environment).some(([name,value])=>!value&&!['INTERRUPTION_EXPERIMENT_ORDER','RECONCILIATION_TRIGGER_ID'].includes(name)))throw new Error('Incomplete isolated conversion credentials');
 await rm('.backend-build',{recursive:true,force:true});await mkdir('.backend-build');
 const options={bundle:true,platform:'node',target:'node24',format:'esm',banner:{js:"import{createRequire as ___cr}from'node:module';const require=___cr(import.meta.url);"}};
 await build({...options,entryPoints:['backend/conversion.ts'],outfile:'.backend-build/index.mjs'});
 await build({...options,entryPoints:['backend/parser.ts'],outfile:'.backend-build/parser.mjs'});
 execFileSync('zip',['-j','function.zip','index.mjs','parser.mjs'],{cwd:'.backend-build',stdio:'pipe'});
-const api=`https://console.neon.tech/api/v2/projects/${project}/branches/${branch}/functions/mendconversion`;
+const api=`https://console.neon.tech/api/v2/projects/${project}/branches/${branch}/functions/${slug}`;
 const headers={Authorization:`Bearer ${credentials.access_token}`};
 const form=new FormData();form.set('zip',new Blob([await readFile('.backend-build/function.zip')],{type:'application/zip'}),'function.zip');form.set('runtime','nodejs24');form.set('environment',JSON.stringify(environment));
 const deployed=await fetch(`${api}/deployments`,{method:'POST',headers,body:form});if(!deployed.ok)throw new Error(`Deployment HTTP ${deployed.status}`);
@@ -31,7 +35,7 @@ for(let n=0;n<60;n++) {
  if(state==='failed')throw new Error('Backend deployment failed; inspect sanitized Neon build logs');
  if(fn.invocation_url&&state==='completed'&&fn.active_deployment?.id===fn.current_deployment?.id) {
   service.CONVERSION_FUNCTION_URL=fn.invocation_url;await writeFile(servicePath,Object.entries(service).map(([key,value])=>`${key}=${value}`).join('\n')+'\n',{mode:0o600});
-  console.log(JSON.stringify({slug:'mendconversion',url:fn.invocation_url,status:state??'serving',environmentNames:Object.keys(environment)}));break;
+  console.log(JSON.stringify({slug,url:fn.invocation_url,status:state??'serving',deploymentId:fn.active_deployment.id,environmentNames:Object.keys(environment)}));break;
  }
  if(n===59)throw new Error('Deployment completion unconfirmed');await new Promise(resolve=>setTimeout(resolve,2000));
 }

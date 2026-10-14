@@ -19,3 +19,5 @@ contracts/broadcast/
 
 node_modules
 .backend-build/
+
+.receipts-build/
