@@ -15,7 +15,8 @@
     "db:migrate": "drizzle-kit migrate",
     "storage:purge-staging": "tsx scripts/purge-staging.ts",
     "purchase": "tsx scripts/purchase.ts",
-    "test:payments": "playwright test tests/payments.spec.ts"
+    "test:payments": "playwright test tests/payments.spec.ts",
+    "test:recovery": "playwright test --config playwright.recovery.config.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1150.0",

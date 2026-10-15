@@ -16,6 +16,11 @@ export async function confirmReceipt(attempt:PaymentAttempt) {
   if(!transaction) {await database().update(paymentAttempts).set({scanBlock:sql`GREATEST(${paymentAttempts.scanBlock}::numeric,${(to+BigInt(1)).toString()}::numeric)::text`}).where(eq(paymentAttempts.orderId,attempt.orderId));return;}
  }
  const receipt=await rpc.getTransactionReceipt({hash:transaction});if(receipt.status!=='success')return;
+ // A node may still return a successful receipt from an orphaned block. Bind
+ // both its transaction and its block to the current canonical numbered block.
+ if(receipt.transactionHash.toLowerCase()!==transaction.toLowerCase())throw new Error('Receipt transaction mismatch');
+ const block=await rpc.getBlock({blockNumber:receipt.blockNumber});
+ if(block.hash?.toLowerCase()!==receipt.blockHash.toLowerCase())throw new Error('Payment receipt is not canonical');
  let used=false,paid=false;
  for(const log of receipt.logs) {
   if(log.address.toLowerCase()!==arcUsdc)continue;
@@ -25,7 +30,7 @@ export async function confirmReceipt(attempt:PaymentAttempt) {
   }catch {/* unrelated token log */}
  }
  if(!used||!paid)throw new Error('Receipt does not prove this authorization and transfer');
- const block=await rpc.getBlock({blockHash:receipt.blockHash});const paidAt=new Date(Number(block.timestamp)*1000);
+ const paidAt=new Date(Number(block.timestamp)*1000);
  const paymentReceipt={status:'success' as const,blockNumber:receipt.blockNumber.toString(),blockHash:receipt.blockHash,amountAtomic:'1000000',decimals:6 as const,gasUsed:receipt.gasUsed.toString(),effectiveGasPrice:receipt.effectiveGasPrice.toString()};
  await database().batch([
   database().update(paymentAttempts).set({transaction}).where(eq(paymentAttempts.orderId,attempt.orderId)),
