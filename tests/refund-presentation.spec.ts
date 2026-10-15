@@ -16,3 +16,10 @@ test('new submitted or unknown attempt remains unconfirmed after a reverted refu
  expect(presentOrder({...order,refundRecord:{...refund,state:'submitted',receipt:null}}).refund.status).toBe('submitted');
  expect(presentOrder({...order,refundRecord:{...refund,state:'receipt_unknown',receipt:null}}).refund.status).toBe('receipt_unknown');
 });
+for(const blocker of ['reserve_unfunded','allowance_exhausted'])for(const state of ['submitted','receipt_unknown','registration_pending'])test(`${state} remains truthful during aggregate ${blocker}`,()=>{
+ const view=presentOrder({...order,refundRecord:{...refund,blocker,state,registeredAt:state==='registration_pending'?null:at}});
+ expect(view.refund.status).toBe(state);
+ expect(view.nextStep).toContain('no additional payment');
+ if(state==='registration_pending')expect(view.outcome).toContain('registration pending');
+ else expect(view.nextStep).toContain('receipt');
+});
