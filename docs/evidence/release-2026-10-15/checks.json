@@ -1,0 +1,11 @@
+{
+  "sha": "96e05307dc6dcfa469eae69d1f95b043fdd42a6a",
+  "recoverySuite": {
+    "passed": 28,
+    "failed": 0,
+    "externalProviders": "controlled",
+    "privateLog": "1792089648377-85035.log"
+  },
+  "packageLockSha256": "70c69efb36f896508179f5e8844346e4cfaea63723b83ba1ef3cf435ba3ab612",
+  "independentReleaseQA": "outstanding (#18)"
+}

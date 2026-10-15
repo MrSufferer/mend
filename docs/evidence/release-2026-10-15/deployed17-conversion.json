@@ -1,0 +1,19 @@
+{
+  "sha": "96e05307dc6dcfa469eae69d1f95b043fdd42a6a",
+  "sourceTarSha256": "3830fffe2b80dccebe3df066d676953db0d56574f8e2bbc4f8c40563ed37add3",
+  "role": "conversion",
+  "slug": "mendconversion6",
+  "project": "morning-bar-76751353",
+  "branch": "br-patient-wave-azrhhl2v",
+  "zipSha256": "ca00ac57f19437bf766bfaa23aaaa50962107b3a9044a412a4919012fd9d2f1d",
+  "environmentNames": [
+    "WEB_CONVERSION_SECRET",
+    "WEB_OPERATOR_CONVERSION_SECRET"
+  ],
+  "preserveExistingEnvironment": true,
+  "deploymentId": 23,
+  "status": "completed",
+  "url": "https://br-patient-wave-azrhhl2v-mendconversion6.compute.c-3.ap-southeast-1.aws.neon.tech/",
+  "at": "2026-10-15T18:41:27.406Z",
+  "remoteByteDigestVerified": false
+}

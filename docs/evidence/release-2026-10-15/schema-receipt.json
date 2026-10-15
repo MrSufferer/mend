@@ -1,0 +1,760 @@
+{
+  "sha": "96e05307dc6dcfa469eae69d1f95b043fdd42a6a",
+  "project": "morning-bar-76751353",
+  "branch": "br-patient-wave-azrhhl2v",
+  "database": "neondb",
+  "role": "neondb_owner",
+  "at": "2026-10-15T18:48:25.776528+00:00",
+  "journal": [
+    {
+      "hash": "92e596b6aecd5c429a3e7665b5d6e2a566f7687ca4e4be3fc295f30219eba69e",
+      "when": 1791904504279
+    },
+    {
+      "hash": "1ed5ddcd89f91ae074b90a6de366266943da999a49027b4d4fb28600e0698b8a",
+      "when": 1791904691331
+    },
+    {
+      "hash": "12f39bb809f6280083079804311aede2c96d9b7b68d6fc6be961c8f6841aedb5",
+      "when": 1791905357004
+    },
+    {
+      "hash": "47d9ade7914da3ace5d4b9a18e126d0d08d609d2d5f6fab7dab07505e347718f",
+      "when": 1791911486389
+    },
+    {
+      "hash": "b5481207e2f0170db1ad1964c15b22c2cdfd46fa5be91c825f4ffd10afab24dc",
+      "when": 1791911817379
+    },
+    {
+      "hash": "127e5be9f373c1e17acc2231a2058429f7fa5c0a00f8405995905a7e0431d93b",
+      "when": 1791912479201
+    },
+    {
+      "hash": "623129e2e26598391fc518936d3982819f5659cb11c206cbcf2e27decc73d255",
+      "when": 1791936783613
+    },
+    {
+      "hash": "92680b0118b3f541b37bfabeb752f0fa48d30c815d68488394678e7e9e7f23f8",
+      "when": 1791937607512
+    },
+    {
+      "hash": "171008034bb01a3c7c0e0abb6decc448ff44d373b01b65ec8b3eefd76fcbe0a5",
+      "when": 1791937708621
+    },
+    {
+      "hash": "fe94b58104f671b6a80ce2a8da7625fb431cd5aff9cd123ec8b667762b4f53a4",
+      "when": 1791937984145
+    },
+    {
+      "hash": "ea4cdc9449eb2c668559cd268992e7809c928380ba6651ab2c2527f63ee2f1b7",
+      "when": 1791938126976
+    },
+    {
+      "hash": "0e1dd910cf2c24d0133e5de36adb361ec07fadee93824d623720b8da7839250d",
+      "when": 1791938154797
+    },
+    {
+      "hash": "d70e732807c0efa266f932c6dc284ecdf2efd4d4e82202c48885a679617586b6",
+      "when": 1791938620524
+    },
+    {
+      "hash": "52ae385b55a093b4baca8a4d97058c014fc44bf5d091043f4969f46bcfb8c46b",
+      "when": 1791941687715
+    },
+    {
+      "hash": "f14aeddf031f8ffd331e0252459a2c8dfa658e3ac69e0cb179b2f009580dadf7",
+      "when": 1791944354607
+    },
+    {
+      "hash": "30117ec5784e7ab17988102831e1729104496aba0d2c67d352db0ec506130919",
+      "when": 1791944711430
+    },
+    {
+      "hash": "14882b66f01d3bb874223c7aae96126fcc03da9b38a2fb352ded20c0af958cb9",
+      "when": 1791944844056
+    },
+    {
+      "hash": "e792144a5d96e49a99f9b2b7d6aee5a6ae04f5f464161c0ffe4ef74c08082844",
+      "when": 1791944974735
+    },
+    {
+      "hash": "808814e7edeeea5e405cd5ab0cd205534798f2931f4e792a27e9399bab146df6",
+      "when": 1791945248570
+    },
+    {
+      "hash": "f6529018d85e9f06f9bde1f9dc35dfb2f97c3a4a188bb830e36d9a366ce23de4",
+      "when": 1791947900810
+    },
+    {
+      "hash": "15bb80b1363aeb00499bd0529de2125ab65cd7bea7b60628af611af44eec00d1",
+      "when": 1791948310837
+    },
+    {
+      "hash": "0e6e993c816a0d5ecf4910f3a5e13f27aa984e32341fd655f3860d9eece75546",
+      "when": 1791948694224
+    },
+    {
+      "hash": "2b9053ec5a85a5071d1fd01888e2fcb1dd7501cce8fe0ff89b25210f02c02350",
+      "when": 1791968778272
+    },
+    {
+      "hash": "d6df2fec81355612d181d3199f63d4bd8982f45e06144bff3231116aed86482f",
+      "when": 1791969029905
+    },
+    {
+      "hash": "8ddb0b0beec021758bcb55372d001558d4fdf491a848167ec618d67d6a922ff5",
+      "when": 1791969158149
+    },
+    {
+      "hash": "a8a7d62a8cfd5c925a724226c290a4cd7779d28f67def7c06981425304cbef92",
+      "when": 1791978806221
+    },
+    {
+      "hash": "37546e29ec94526df0ad29e15a511a43a55f5ffbd4d76db963ad2600d51f196e",
+      "when": 1791979003305
+    },
+    {
+      "hash": "d5cd2f022412d89c77941a676784ea9da52b4f8d9dfe585e49585e1f9c1e17b8",
+      "when": 1791979029869
+    },
+    {
+      "hash": "0f22f10a86cf4dbcd48b97a181cd7938ff070f4a16099ac01e8b6e891187eaed",
+      "when": 1791979656586
+    },
+    {
+      "hash": "2c8cb1767398b553c96fc9b511a1d6b68f3ffdf8fa70f135b3353b34f89bdf99",
+      "when": 1791979895415
+    },
+    {
+      "hash": "2214b19d9fef15a70128b67d7b2bebf17bbdf601f52acb551f3e7db56ece061f",
+      "when": 1791980641873
+    },
+    {
+      "hash": "e67fd3b7675524951e2fd7cba1330e65290761257b5ba825f64c41d86d1cafcc",
+      "when": 1791982262767
+    },
+    {
+      "hash": "e984c572a33971200a1c7cd96b6c230671389715d27c0ef828055139f29df7f8",
+      "when": 1791986252915
+    },
+    {
+      "hash": "ec9e262c4184f9636a2b2e970fd8a622857a4ad63b0bc8e2ba012137128d8749",
+      "when": 1791986408614
+    },
+    {
+      "hash": "740235085c60c6c38ac1880d15c473476e62fb26ea2fa3e540575754b079a666",
+      "when": 1791996346284
+    },
+    {
+      "hash": "a43906599213083a0a1c83f6af7455015a77dca34e1ddc9115ecfbd3e66b0336",
+      "when": 1791996480241
+    },
+    {
+      "hash": "fe57ffaa81ddcbf677e23966d0a8bf0e3ff93152239622ad3a57f839db8e2afb",
+      "when": 1791996588753
+    },
+    {
+      "hash": "bc5eb6fe27c3d5ae03f4fda1e6ed31a23feb466696469e411dfee846e6a718bd",
+      "when": 1791996588754
+    },
+    {
+      "hash": "5ee6959245d1b4b3e7f514cbc82b42decb5cca1cdbaf519174eeb8d7e00b04eb",
+      "when": 1791996588755
+    },
+    {
+      "hash": "8ac61cf6d082e3a628cc0c92476b9e8342a5fc84138b847ac231eae6e24c2001",
+      "when": 1791996588756
+    },
+    {
+      "hash": "30d79516351b38a120cc0614de0eae994cb02801c93e507111b0d623981aba5e",
+      "when": 1791996588757
+    },
+    {
+      "hash": "e794ba2808e151fa3ec426cfb3a6a1b988b533031f9aec8fbb6998071a64f4e2",
+      "when": 1792042952844
+    },
+    {
+      "hash": "5b48f2b551795078d7c97c4c15435e563a91429fca8b76188779f75b7e49895d",
+      "when": 1792042961610
+    },
+    {
+      "hash": "563d9dad0c4adf3e7a6d2bed05ced399baeb6ed2ebf1787d9577900ab6b371fc",
+      "when": 1792042961973
+    },
+    {
+      "hash": "338bc6b707b80d230977167b21bdd71d3f4229f4db7160b4ac25cddcf2f99481",
+      "when": 1792043124090
+    },
+    {
+      "hash": "b47aabad05909d5f73d3fb623fb4989bfc71a8cf5060380d2c186aced82c898c",
+      "when": 1792049219668
+    },
+    {
+      "hash": "f321f58d8f9f45833621a2e2c4989a1e23b86cb619e46eaa8211abea31597a5c",
+      "when": 1792060000000
+    }
+  ],
+  "availability": {
+    "paused": false,
+    "generation": 0,
+    "failureGeneration": 0
+  },
+  "runtimeRoles": [
+    {
+      "rolname": "mend_conversion",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": true,
+      "rolbypassrls": false
+    },
+    {
+      "rolname": "mend_payment_reconciler",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": true,
+      "rolbypassrls": false
+    },
+    {
+      "rolname": "mend_refund_worker",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": true,
+      "rolbypassrls": false
+    },
+    {
+      "rolname": "mend_registrar",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": true,
+      "rolbypassrls": false
+    },
+    {
+      "rolname": "mend_web",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": true,
+      "rolbypassrls": false
+    },
+    {
+      "rolname": "mend_worker",
+      "rolsuper": false,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": true,
+      "rolbypassrls": false
+    }
+  ],
+  "privileges": [
+    {
+      "grantee": "mend_conversion",
+      "table_schema": "public",
+      "table_name": "agent_actions",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_conversion",
+      "table_schema": "public",
+      "table_name": "agent_calls",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_conversion",
+      "table_schema": "public",
+      "table_name": "agent_invocations",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_conversion",
+      "table_schema": "public",
+      "table_name": "content_retention",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_conversion",
+      "table_schema": "public",
+      "table_name": "execution_attempts",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_conversion",
+      "table_schema": "public",
+      "table_name": "orders",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_conversion",
+      "table_schema": "public",
+      "table_name": "reconciliation_sweeps",
+      "privilege_type": "INSERT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_conversion",
+      "table_schema": "public",
+      "table_name": "reconciliation_sweeps",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_conversion",
+      "table_schema": "public",
+      "table_name": "reconciliation_sweeps",
+      "privilege_type": "UPDATE",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_conversion",
+      "table_schema": "public",
+      "table_name": "recovery_cases",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_conversion",
+      "table_schema": "public",
+      "table_name": "refund_checks",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_conversion",
+      "table_schema": "public",
+      "table_name": "refunds",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_conversion",
+      "table_schema": "public",
+      "table_name": "result_downloads",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_payment_reconciler",
+      "table_schema": "public",
+      "table_name": "orders",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_payment_reconciler",
+      "table_schema": "public",
+      "table_name": "payment_attempts",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_refund_worker",
+      "table_schema": "public",
+      "table_name": "refund_capacity",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_refund_worker",
+      "table_schema": "public",
+      "table_name": "refunds",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_registrar",
+      "table_schema": "public",
+      "table_name": "execution_attempts",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_registrar",
+      "table_schema": "public",
+      "table_name": "orders",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_registrar",
+      "table_schema": "public",
+      "table_name": "payment_attempts",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_registrar",
+      "table_schema": "public",
+      "table_name": "reconciliation_sweeps",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_registrar",
+      "table_schema": "public",
+      "table_name": "refund_capacity",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_registrar",
+      "table_schema": "public",
+      "table_name": "refund_checks",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_registrar",
+      "table_schema": "public",
+      "table_name": "refunds",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_registrar",
+      "table_schema": "public",
+      "table_name": "result_downloads",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "agent_actions",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "agent_calls",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "agent_invocations",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "agent_sweeps",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "auth_challenges",
+      "privilege_type": "INSERT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "auth_challenges",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "auth_sessions",
+      "privilege_type": "INSERT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "auth_sessions",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "execution_attempts",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "operator_requests",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "orders",
+      "privilege_type": "INSERT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "orders",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "payment_attempts",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "reconciliation_sweeps",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "recovery_cases",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "recovery_policies",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "refund_capacity",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "refunds",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "result_downloads",
+      "privilege_type": "INSERT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "result_downloads",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "service_availability",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "service_incidents",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "submissions",
+      "privilege_type": "INSERT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_web",
+      "table_schema": "public",
+      "table_name": "submissions",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_worker",
+      "table_schema": "public",
+      "table_name": "agent_actions",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_worker",
+      "table_schema": "public",
+      "table_name": "agent_calls",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_worker",
+      "table_schema": "public",
+      "table_name": "agent_invocations",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_worker",
+      "table_schema": "public",
+      "table_name": "agent_sweeps",
+      "privilege_type": "INSERT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_worker",
+      "table_schema": "public",
+      "table_name": "agent_sweeps",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_worker",
+      "table_schema": "public",
+      "table_name": "agent_sweeps",
+      "privilege_type": "UPDATE",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_worker",
+      "table_schema": "public",
+      "table_name": "execution_attempts",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_worker",
+      "table_schema": "public",
+      "table_name": "orders",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_worker",
+      "table_schema": "public",
+      "table_name": "processing_failures",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_worker",
+      "table_schema": "public",
+      "table_name": "reconciliation_sweeps",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_worker",
+      "table_schema": "public",
+      "table_name": "recovery_cases",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_worker",
+      "table_schema": "public",
+      "table_name": "refunds",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    },
+    {
+      "grantee": "mend_worker",
+      "table_schema": "public",
+      "table_name": "result_downloads",
+      "privilege_type": "SELECT",
+      "is_grantable": "NO"
+    }
+  ],
+  "sweeps": {
+    "conversion": "2026-10-15T18:45:02.306+00:00",
+    "agent": "2026-10-15T18:45:01.322+00:00",
+    "refund": "2026-10-15T18:45:02.474748+00:00"
+  },
+  "receiptReconciliation": {
+    "latestReconciledAt": "2026-10-14T01:30:02.403+00:00",
+    "attemptCount": 11
+  },
+  "retentionPending": [
+    {
+      "kind": "staging",
+      "failure": "storage_unknown",
+      "count": 1,
+      "earliestExpiry": "2026-10-14T00:31:23.726+00:00",
+      "lastCheckedAt": "2026-10-15T17:45:06.417494+00:00"
+    }
+  ],
+  "retention": {
+    "total": 407,
+    "due": 201,
+    "pending": 1,
+    "deleted": 200,
+    "lastCheckedAt": "2026-10-15T18:45:02.189269+00:00"
+  },
+  "schedules": [
+    {
+      "type": "schedule",
+      "trigger_id": "trigger-696b144a-b3fa-4652-89d5-e6fcea7305bd",
+      "function_slug": "mendagent7",
+      "function_path": "/scheduled",
+      "schedule": {
+        "cron": "*/15 * * * *"
+      },
+      "enabled": true,
+      "version": 267398
+    },
+    {
+      "type": "schedule",
+      "trigger_id": "trigger-6f75008a-db7d-4a7a-bd10-f3a0343a6e60",
+      "function_slug": "mendrefund11",
+      "function_path": "/scheduled",
+      "schedule": {
+        "cron": "*/15 * * * *"
+      },
+      "enabled": true,
+      "version": 295908
+    },
+    {
+      "type": "schedule",
+      "trigger_id": "trigger-890d1c13-f393-41bc-8d69-8f574dd37159",
+      "function_slug": "mendreceipts",
+      "function_path": "/scheduled",
+      "schedule": {
+        "cron": "*/15 * * * *"
+      },
+      "enabled": true,
+      "version": 266904
+    },
+    {
+      "type": "schedule",
+      "trigger_id": "trigger-ed102c55-a3a1-4d8c-9223-12c74908312c",
+      "function_slug": "mendconversion6",
+      "function_path": "/scheduled",
+      "schedule": {
+        "cron": "*/15 * * * *"
+      },
+      "enabled": true,
+      "version": 266905
+    }
+  ]
+}

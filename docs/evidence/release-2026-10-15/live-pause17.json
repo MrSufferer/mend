@@ -1,0 +1,63 @@
+{
+  "status": "passed",
+  "source": {
+    "sha": "96e05307dc6dcfa469eae69d1f95b043fdd42a6a",
+    "dirty": false
+  },
+  "startedAt": "2026-10-15T18:39:43.524Z",
+  "finishedAt": "2026-10-15T18:40:15.944Z",
+  "syntheticFailures": true,
+  "syntheticPaymentFacts": true,
+  "realProvider": true,
+  "model": "nvidia/nemotron-3.5-lightning:free",
+  "database": "mend_ticket16_lifecycle",
+  "callLimit": 12,
+  "invocationLimitSeconds": 60,
+  "httpStatus": 200,
+  "callsUsed": 7,
+  "invocations": [
+    {
+      "outcome": "insufficient_evidence",
+      "startedAt": "2026-10-15T18:39:43.749Z",
+      "deadline": "2026-10-15T18:40:43.754Z",
+      "finishedAt": "2026-10-15T18:40:15.408Z"
+    }
+  ],
+  "actions": [
+    {
+      "tool": "inspect_order",
+      "outcome": "observed"
+    },
+    {
+      "tool": "inspect_execution",
+      "outcome": "observed"
+    },
+    {
+      "tool": "inspect_output",
+      "outcome": "observed"
+    },
+    {
+      "tool": "related_orders",
+      "outcome": "observed"
+    },
+    {
+      "tool": "request_refund",
+      "outcome": "observed"
+    },
+    {
+      "tool": "request_pause",
+      "outcome": "observed"
+    }
+  ],
+  "availability": {
+    "paused": true,
+    "generation": 1,
+    "failure_generation": 2
+  },
+  "financialEffects": {
+    "charges": 0,
+    "refunds": 0,
+    "registrations": 0
+  },
+  "scope": "Real inference against synthetic isolated failures and synthetic payment facts; no main merchant pause or financial effects. Refund request refused payment_unknown; invocation ended insufficient_evidence."
+}

@@ -1,0 +1,12 @@
+{
+  "sha": "96e05307dc6dcfa469eae69d1f95b043fdd42a6a",
+  "origin": "https://mend-3hvszzylk-gadillacers-projects.vercel.app",
+  "sourceTarSha256": "3830fffe2b80dccebe3df066d676953db0d56574f8e2bbc4f8c40563ed37add3",
+  "projectId": "prj_kxV9vCU6WSADn5BbRmGdhDRX3vSI",
+  "teamId": "team_YqQOxoqIXZLtwGdjXoF27rRD",
+  "state": "READY",
+  "buildCommand": "npm run build -- --webpack",
+  "deployment": "dpl_Agt3HdySS2828i31Mfv6rpbw31RQ",
+  "target": "preview",
+  "providerTarget": null
+}

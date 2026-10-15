@@ -1,0 +1,18 @@
+{
+  "sha": "96e05307dc6dcfa469eae69d1f95b043fdd42a6a",
+  "sourceTarSha256": "3830fffe2b80dccebe3df066d676953db0d56574f8e2bbc4f8c40563ed37add3",
+  "role": "registrar",
+  "slug": "mendregistrar11",
+  "project": "morning-bar-76751353",
+  "branch": "br-patient-wave-azrhhl2v",
+  "zipSha256": "2f9a1e4da5b024d7cae02407e9c552fb342bb2bcac28b1e3788935aeb8607886",
+  "environmentNames": [
+    "WEB_OPERATOR_REGISTRAR_SECRET"
+  ],
+  "preserveExistingEnvironment": true,
+  "deploymentId": 8,
+  "status": "completed",
+  "url": "https://br-patient-wave-azrhhl2v-mendregistrar11.compute.c-3.ap-southeast-1.aws.neon.tech/",
+  "at": "2026-10-15T18:41:38.071Z",
+  "remoteByteDigestVerified": false
+}

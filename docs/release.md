@@ -1,6 +1,6 @@
 # Reproduce and assess the release
 
-Mend uses Next.js on Vercel Free, Neon PostgreSQL/Functions/private Object Storage, Arc testnet and direct OpenRouter inference with an explicitly selected inference provider. Neon AI Gateway was superseded by the approved direct-provider choice. The final public release remains subject to the gates below.
+Mend uses Next.js on Vercel Free, Neon PostgreSQL/Functions/private Object Storage, Arc testnet and direct OpenRouter inference with an OpenRouter-selected inference provider. Neon AI Gateway was superseded by the approved direct-provider choice. The final public release remains subject to the gates below.
 
 ## Source and build inputs
 
@@ -75,16 +75,8 @@ The default Foundry auto-remapping build currently adds `erc4626-tests/` and `ha
 
 ## Acceptance status
 
-This preparation does **not** identify a completed public release or independently passing release QA. Historical protected preview: [ticket13 proof](ticket13-runtime-proof.md). Historical paid/model/refund proofs are indexed in [demonstrations](release-demonstrations.md); their source and date matter.
+The [2026-10-15 public acceptance observations](release-acceptance-2026-10-15.md) identify exact runtime source96, the public preview origin, completed/current backend IDs, schema/authority readback, authenticated privacy/health checks and the bounded real-provider early-pause demonstration. Its sanitized receipts are checked in alongside the report. Historical paid/model/refund scenarios remain separately dated in [demonstrations](release-demonstrations.md); fresh contract reproduction is summarized in [contract verification](contract-verification.md).
 
-Release evidence must resolve all of these before closing public acceptance:
-
-- Exact reviewed source, build/archive/bundle/migration/license receipts and completed runtime IDs, effective grants, ordinary schedules and deployed retention progress.
-- Recovered or safely enrolled web conversion, agent and operator bindings, with distinct authority and authenticated negative tests. Existing health credentials alone are insufficient.
-- An anonymously accessible provider-generated app origin, final-target configuration, and real SIWE/private tracking/download/health checks at that origin.
-- Real PDF conversion and receipt-confirmed Arc settlement/refund evidence, clearly separated from synthetic lifecycle tests and labeled with the actual demonstrated source.
-- Evidence-dependent live-model restoration, monitoring, one retry and early pause, plus deliberate authenticated healthy resume. Previously unavailable live early-pause evidence remains a gate until actually demonstrated; fixtures cannot close it.
-- Contract/toolchain reproduction, verified source/interface/authority readback and full shipped third-party notices.
-- Independent release QA; publication or documentation alone is not QA approval.
+Independent release QA in [#18](https://github.com/MrSufferer/mend/issues/18) remains outstanding. One overdue staging retention record remains `storage_unknown`; the observed sweep does not prove new deletions or full backlog clearance. Receipt reconciliation has an enabled trigger but no eligible work, so fresh scheduled receipt execution is not independently demonstrated. The live pause succeeded on synthetic isolated failures, while its refund request was refused and overall invocation ended `insufficient_evidence`. These limits remain visible in the acceptance report and must not be relabeled as a full release QA PASS.
 
 No new paid plan, credits, production funds, extra test purchase, budget reset or repeated model-quota probing is implied by these reproduction commands. When live access is unavailable, retain the exact failed gate and next useful retry condition instead of claiming completion.
