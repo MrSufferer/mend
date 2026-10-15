@@ -28,3 +28,5 @@ node_modules
 
 .registrar-build/
 .refund-build/
+
+.agent-logs/
