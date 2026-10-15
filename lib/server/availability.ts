@@ -9,7 +9,8 @@ import {ApiError,jsonBody} from './http';
 export async function operatorAvailability(){
  await requireOperator();
  const [state,incidents]=await Promise.all([database().select().from(serviceAvailability),database().select().from(serviceIncidents).orderBy(desc(serviceIncidents.createdAt)).limit(20)]);
- return {availability:state[0],incidents,capacity:await refundCapacity()};
+ const retention=await database().execute(sql`SELECT public.mend_retention_status() AS status`);
+ return {availability:state[0],incidents,capacity:await refundCapacity(),retention:retention.rows[0].status};
 }
 export async function operatorPause(request:Request){
  sameOrigin(request);const authority=await operatorAuthority();

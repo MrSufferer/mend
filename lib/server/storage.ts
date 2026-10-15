@@ -27,7 +27,9 @@ export async function readUpload(key:string,signal?:AbortSignal) {
   return {bytes:Buffer.concat(chunks), uploadedAt:data.LastModified ?? head.LastModified ?? new Date()};
 }
 export async function saveUpload(key:string,bytes:Uint8Array,signal?:AbortSignal) {
-  await client().send(new PutObjectCommand({Bucket:bucket(),Key:key,Body:bytes,ContentType:'application/pdf'}),{abortSignal:signal});
+  try{await client().send(new PutObjectCommand({Bucket:bucket(),Key:key,IfNoneMatch:'*',Body:bytes,ContentType:'application/pdf'}),{abortSignal:signal});}
+  catch(error){if((error as {$metadata?:{httpStatusCode?:number}}).$metadata?.httpStatusCode!==412)throw error;
+   const existing=await readUpload(key,signal);if(createHash('sha256').update(existing.bytes).digest('hex')!==createHash('sha256').update(bytes).digest('hex'))throw new ApiError(409,'upload_conflict','The accepted document could not be verified.');}
 }
 export async function deleteUpload(key:string) {await client().send(new DeleteObjectCommand({Bucket:bucket(),Key:key}));}
 

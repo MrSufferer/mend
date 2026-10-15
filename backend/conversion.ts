@@ -1,4 +1,4 @@
-import {storageClient as s3,readPrivateObject} from '../lib/server/storage-transport';
+import {storageClient as s3,readPrivateObject,deletePrivateObject} from '../lib/server/storage-transport';
 import './database-timeout';
 import type {Worker} from 'node:worker_threads';
 import {runPdfWorker} from './pdf-worker';
@@ -32,8 +32,10 @@ async function checkedCandidate(attempt:typeof executionAttempts.$inferSelect) {
  const p=attempt.outputPublication;if(!p)return null;
  const stored=await read(process.env.OUTPUT_BUCKET!,p.key);
  if(stored.bytes.length!==p.size||hash(stored.bytes)!==p.sha256||!stored.bytes.toString('utf8').trim()||!stored.createdAt)throw new Error('output_integrity');
- const createdAt=stored.createdAt,expiresAt=new Date(createdAt.getTime()+7*86400000);
- if(expiresAt.getTime()<=Date.now())throw new Error('output_expired');
+ const clock=await database().execute(sql`SELECT public.mend_retention_clock(${attempt.id}::uuid,${stored.createdAt.toISOString()}::timestamptz) AS clock`);
+ const retained=clock.rows[0].clock as {createdAt:string;expiresAt:string;tombstoned:boolean};
+ const createdAt=new Date(retained.createdAt),expiresAt=new Date(retained.expiresAt);
+ if(retained.tombstoned||expiresAt.getTime()<=Date.now())throw new Error('output_expired');
  return {key:p.key,sha256:p.sha256,size:p.size,createdAt:createdAt.toISOString(),expiresAt:expiresAt.toISOString(),verifiedAt:new Date().toISOString()};
 }
 async function finalAbsence(attempt:typeof executionAttempts.$inferSelect) {
@@ -130,11 +132,16 @@ async function registrarCheck(request:Request) {
   for(const attempt of attempts) {
    if(attempt.outputPublication) {
     try{const result=await checkedCandidate(attempt);if(result){const restored=await database().execute(sql`SELECT public.mend_restore_output(${attempt.id}::uuid,${JSON.stringify(result)}::jsonb) AS restored`);outcome=restored.rows[0]?.restored?'delivery':'unknown';break;}}catch{}
-    outcome='unknown';break;
+    const retained=await database().execute(sql`SELECT created_at,expires_at,tombstoned_at FROM public.content_retention WHERE kind='output' AND object_key=${attempt.outputPublication.key}`);
+    const r=retained.rows[0];
+    if(!r?.created_at||!r.tombstoned_at||new Date(String(r.expires_at)).getTime()>Date.now()||await finalAbsence(attempt)!=='absent'){outcome='unknown';break;}
+    await database().execute(sql`SELECT public.mend_retention_finish('output',${attempt.outputPublication.key},'absent')`);
+    continue;
    }
    if(attempt.finalOutputCheck!=='absent'||await finalAbsence(attempt)!=='absent'){outcome='unknown';break;}
   }
  }
+ if(outcome==='absent'&&attempts.some(a=>a.outputPublication)){const assessment=await database().execute(sql`SELECT public.mend_postexpiry_check(${id}::uuid,${JSON.stringify(attempts.map(a=>a.id))}::jsonb) AS valid`);if(!assessment.rows[0]?.valid)outcome='unknown';}
  const proof=await database().execute(sql`SELECT public.mend_refund_output_check(${id}::uuid,${JSON.stringify(attempts.map(a=>a.id))}::jsonb,${outcome}) AS proof`);
  return Response.json(proof.rows[0].proof);
 }
@@ -195,7 +202,9 @@ async function execute(order:Order,attemptId:string,experiment?:string){
   const publication={state:'prepared' as const,key,sha256:hash(output),size:output.length,preparedAt:new Date().toISOString()};
   const prepared=await database().execute(sql`SELECT public.mend_prepare_output(${attemptId}::uuid,${JSON.stringify(publication)}::jsonb) AS prepared`);
   if(!prepared.rows[0]?.prepared)throw new Error('publication_fenced');
-  await s3().send(new PutObjectCommand({Bucket:process.env.OUTPUT_BUCKET!,Key:key,Body:output,ContentType:'text/plain; charset=utf-8'}),{abortSignal:AbortSignal.any([control.abort.signal,AbortSignal.timeout(8000)])});
+  const write=await database().execute(sql`SELECT public.mend_content_write(${attemptId}::uuid) AS allowed`);
+  if(!write.rows[0]?.allowed)throw new Error('publication_fenced');
+  await s3().send(new PutObjectCommand({Bucket:process.env.OUTPUT_BUCKET!,Key:key,IfNoneMatch:'*',Body:output,ContentType:'text/plain; charset=utf-8'}),{abortSignal:AbortSignal.any([control.abort.signal,AbortSignal.timeout(8000)])});
   const [attempt]=await database().select().from(executionAttempts).where(eq(executionAttempts.id,attemptId));
   const result=await checkedCandidate(attempt);
   if(experiment==='publication')throw new Error('injected_publication_interruption');
@@ -210,11 +219,22 @@ async function execute(order:Order,attemptId:string,experiment?:string){
   return {status:'stopped'};
  }finally{clearTimeout(timer);clearInterval(poll);active.delete(attemptId);complete();}
 }
+async function cleanupContent(){
+ const claimed=await database().execute(sql`SELECT public.mend_retention_claim() AS objects`);
+ const objects=claimed.rows[0].objects as {kind:string;object_key:string}[];
+ await Promise.all(objects.map(async object=>{
+  let outcome='storage_unknown';
+  try{outcome=await deletePrivateObject(object.kind==='output'?process.env.OUTPUT_BUCKET!:process.env.UPLOAD_BUCKET!,object.object_key)?'absent':'object_present';}catch{}
+  await database().execute(sql`SELECT public.mend_retention_finish(${object.kind},${object.object_key},${outcome})`);
+ }));
+ return {checked:objects.length};
+}
 async function scheduled(request:Request) {
  const body=await request.json(),header=request.headers.get('X-Neon-Trigger-Invocation-Id');
  if(!header||header!==body.invocation_id||body.version!==1||body.trigger?.type!=='schedule'||body.trigger.id!==process.env.RECONCILIATION_TRIGGER_ID||!Number.isFinite(Date.parse(body.data?.scheduled_at)))return Response.json({error:'invalid_trigger'},{status:403});
  const [claimed]=await database().insert(reconciliationSweeps).values({id:body.invocation_id,scheduledAt:new Date(body.data.scheduled_at)}).onConflictDoNothing().returning();if(!claimed)return Response.json({status:'already_observed'});
  await cleanupHealth();
+ await cleanupContent();
  const pending=await database().select({id:orders.id}).from(orders).where(sql`${orders.deliveredAt} IS NULL AND (${orders.paidAt} IS NOT NULL OR EXISTS (SELECT 1 FROM public.payment_attempts p WHERE p.order_id=${orders.id}))`).orderBy(sql`${orders.recoveryObservation}->>'checkedAt' ASC NULLS FIRST`,orders.createdAt).limit(3);
  const started=Date.now();let observed=0;
  for(const order of pending){if(Date.now()-started>=30000)break;try{await reconcile(order.id);}catch{await database().update(orders).set({recoveryObservation:{checkedAt:new Date().toISOString(),outcome:'infrastructure_unknown',execution:'unknown'}}).where(eq(orders.id,order.id));}observed++;}
@@ -239,6 +259,7 @@ export default {async fetch(request:Request) {
    return Response.json({identity:identity.rows[0],signingCredentialsAbsent:!Object.keys(process.env).some(name=>/PRIVATE_KEY|OPENROUTER|SESSION_SECRET/.test(name))});
   }
   const body=await request.json();if(!/^[0-9a-f-]{36}$/.test(body.orderId))return Response.json({error:'invalid_order'},{status:400});
+  if(path==='/retention'&&Object.keys(body).join(',')==='orderId')return Response.json(await cleanupContent());
   if(path==='/stop'){await database().execute(sql`SELECT public.mend_request_stop(${body.orderId}::uuid)`);return Response.json({status:'stop_requested'});}
   if(path==='/reconcile')return Response.json(await reconcile(body.orderId));
   if(path==='/experiment') {if(!process.env.INTERRUPTION_EXPERIMENT_ORDER?.split(',').includes(body.orderId)||!['shutdown','noack','publication','failure'].includes(body.mode))return Response.json({error:'experiment_disabled'},{status:403});return Response.json(await convert(body.orderId,body.mode));}
