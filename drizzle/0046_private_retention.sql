@@ -63,17 +63,23 @@ GRANT EXECUTE ON FUNCTION public.mend_retention_clock(uuid,timestamptz),public.m
 CREATE TABLE public.postexpiry_output_checks(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),order_id uuid NOT NULL CONSTRAINT postexpiry_output_checks_order_id_orders_id_fk REFERENCES orders(id),checked_at timestamptz NOT NULL DEFAULT clock_timestamp(),identity jsonb NOT NULL);
 REVOKE ALL ON public.postexpiry_output_checks FROM PUBLIC,mend_web,mend_worker,mend_registrar,mend_refund_worker,mend_conversion,mend_payment_reconciler;
 CREATE FUNCTION public.mend_retention_identity(p_order uuid) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public,pg_temp AS $$
- SELECT jsonb_agg(jsonb_build_object('id',a.id,'generation',a.generation,'publication',a.output_publication,'stopped',a.stopped_at,'finished',a.publisher_finished_at,'fenced',a.publication_fenced_at,'key',r.object_key,'created',r.created_at,'expiry',r.expires_at,'tombstone',r.tombstoned_at) ORDER BY a.generation) FROM execution_attempts a LEFT JOIN content_retention r ON r.kind='output' AND r.object_key='results/'||a.order_id||'/'||a.id||'.txt' WHERE a.order_id=p_order
+ SELECT jsonb_agg(jsonb_build_object('id',a.id,'generation',a.generation,'publication',a.output_publication,'stopped',a.stopped_at,'finished',a.publisher_finished_at,'fenced',a.publication_fenced_at,'key',r.object_key,'created',r.created_at,'expiry',r.expires_at,'tombstone',r.tombstoned_at,'checked',r.checked_at,'deleted',r.deleted_at,'failure',r.failure) ORDER BY a.generation) FROM execution_attempts a LEFT JOIN content_retention r ON r.kind='output' AND r.object_key='results/'||a.order_id||'/'||a.id||'.txt' WHERE a.order_id=p_order
 $$;
-CREATE FUNCTION public.mend_postexpiry_valid(p_order uuid) RETURNS boolean LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path=public,pg_temp AS $$
- SELECT EXISTS(SELECT FROM postexpiry_output_checks c WHERE c.order_id=p_order AND c.checked_at BETWEEN clock_timestamp()-interval '10 seconds' AND clock_timestamp() AND c.identity=mend_retention_identity(p_order))
-$$;
+CREATE FUNCTION public.mend_postexpiry_valid(p_order uuid) RETURNS boolean LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public,pg_temp AS $$
+BEGIN
+ -- Callers hold order/attempt locks first. Keep observations fixed through the
+ -- refund decision; a concurrent finish must serialize before or after it.
+ PERFORM 1 FROM content_retention r JOIN execution_attempts a ON r.kind='output' AND r.object_key='results/'||a.order_id||'/'||a.id||'.txt' WHERE a.order_id=p_order ORDER BY r.object_key FOR UPDATE OF r;
+ RETURN EXISTS(SELECT FROM postexpiry_output_checks c WHERE c.order_id=p_order AND c.checked_at BETWEEN clock_timestamp()-interval '10 seconds' AND clock_timestamp() AND c.identity=mend_retention_identity(p_order))
+ AND NOT EXISTS(SELECT FROM execution_attempts a WHERE a.order_id=p_order AND a.output_publication IS NOT NULL AND NOT EXISTS(SELECT FROM content_retention r WHERE r.kind='output' AND r.object_key=a.output_publication->>'key' AND r.failure IS NULL AND r.deleted_at BETWEEN clock_timestamp()-interval '10 seconds' AND clock_timestamp()));
+END; $$;
 CREATE FUNCTION public.mend_postexpiry_check(p_order uuid,p_attempts jsonb) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
 BEGIN
  PERFORM 1 FROM orders WHERE id=p_order AND delivered_at IS NULL AND result IS NULL AND disposition='unresolved' FOR UPDATE;
  IF NOT FOUND THEN RETURN false; END IF;
  PERFORM 1 FROM execution_attempts WHERE order_id=p_order ORDER BY generation FOR UPDATE;
- IF p_attempts IS NULL OR p_attempts IS DISTINCT FROM (SELECT jsonb_agg(id::text ORDER BY generation) FROM execution_attempts WHERE order_id=p_order) OR EXISTS(SELECT FROM execution_attempts a WHERE a.order_id=p_order AND (a.stopped_at IS NULL OR a.publisher_finished_at IS NULL OR a.publication_fenced_at IS NULL OR (a.output_publication IS NOT NULL AND NOT EXISTS(SELECT FROM content_retention r WHERE r.kind='output' AND r.object_key=a.output_publication->>'key' AND r.created_at IS NOT NULL AND r.expires_at<=clock_timestamp() AND r.tombstoned_at IS NOT NULL AND r.deleted_at BETWEEN clock_timestamp()-interval '10 seconds' AND clock_timestamp())))) THEN RETURN false; END IF;
+ PERFORM 1 FROM content_retention r JOIN execution_attempts a ON r.kind='output' AND r.object_key='results/'||a.order_id||'/'||a.id||'.txt' WHERE a.order_id=p_order ORDER BY r.object_key FOR UPDATE OF r;
+ IF p_attempts IS NULL OR p_attempts IS DISTINCT FROM (SELECT jsonb_agg(id::text ORDER BY generation) FROM execution_attempts WHERE order_id=p_order) OR EXISTS(SELECT FROM execution_attempts a WHERE a.order_id=p_order AND (a.stopped_at IS NULL OR a.publisher_finished_at IS NULL OR a.publication_fenced_at IS NULL OR (a.output_publication IS NOT NULL AND NOT EXISTS(SELECT FROM content_retention r WHERE r.kind='output' AND r.object_key=a.output_publication->>'key' AND r.created_at IS NOT NULL AND r.expires_at<=clock_timestamp() AND r.tombstoned_at IS NOT NULL AND r.failure IS NULL AND r.deleted_at BETWEEN clock_timestamp()-interval '10 seconds' AND clock_timestamp())))) THEN RETURN false; END IF;
  INSERT INTO postexpiry_output_checks(order_id,identity) VALUES(p_order,mend_retention_identity(p_order));
  RETURN true;
 END; $$;

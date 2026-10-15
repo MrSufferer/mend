@@ -38,10 +38,15 @@ test('independent result clocks remain fixed after repeated verification and del
  await expect(db`SELECT mend_retention_clock(${o.attempt}::uuid,${new Date(Date.parse(at)+1000).toISOString()}::timestamptz)`).rejects.toThrow();
  expect((await db`SELECT mend_postexpiry_check(${o.id}::uuid,${JSON.stringify([o.attempt])}::jsonb) AS valid`)[0].valid).toBe(false);
 });
-test('content runtime confirms physical deletion, retries recreated late writes and preserves an unrelated key',async()=>{
+test('content runtime deletes upload then output at independent deadlines, retries late writes and preserves delivered records',async()=>{
  const {createServer}=await import('node:http');
  const o=await order(),key=`/upload/accepted/${o.submission}.pdf`,unrelated='/upload/accepted/unrelated.pdf';
- const objects=new Map([[key,Buffer.from('private original')],[unrelated,Buffer.from('unrelated')]]);
+ const outputKey=`/output/${o.key}`,expiresAt=new Date(Date.now()+10000).toISOString(),createdAt=new Date(Date.parse(expiresAt)-7*86400000).toISOString();
+ const result={key:o.key,createdAt,expiresAt,sha256:'b'.repeat(64),size:4,verifiedAt:new Date().toISOString()};
+ await db`INSERT INTO content_retention(kind,object_key,created_at,expires_at) VALUES('output',${o.key},${createdAt},${expiresAt})`;
+ await db`UPDATE orders SET delivered_at=clock_timestamp(),disposition='delivered',status='delivered',payment_transaction=${'0x'+o.id.replaceAll('-','').repeat(2)},payment_receipt='{"status":"success","blockNumber":"1"}'::jsonb,result=${JSON.stringify(result)}::jsonb WHERE id=${o.id}`;
+ const before=(await db`SELECT to_jsonb(orders) AS record FROM orders WHERE id=${o.id}`)[0].record;
+ const objects=new Map([[key,Buffer.from('private original')],[outputKey,Buffer.from('text')],[unrelated,Buffer.from('unrelated')]]);
  let releaseWrite!:()=>void,writeStarted!:()=>void;const hold=new Promise<void>(r=>releaseWrite=r),started=new Promise<void>(r=>writeStarted=r);
  const server=createServer(async(req,res)=>{const path=new URL(req.url!,'http://fixture').pathname;if(req.method==='PUT'){const chunks:Buffer[]=[];for await(const c of req)chunks.push(c);writeStarted();await hold;objects.set(path,Buffer.concat(chunks));res.end();return;}if(req.method==='DELETE'){objects.delete(path);res.statusCode=204;res.end();return;}const bytes=objects.get(path);if(!bytes){res.statusCode=404;res.end();return;}res.setHeader('Content-Length',bytes.length);res.end(req.method==='HEAD'?undefined:bytes);});
  await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
@@ -56,12 +61,20 @@ test('content runtime confirms physical deletion, retries recreated late writes 
   const pendingWrite=fetch(endpoint+key,{method:'PUT',body:'late in-flight write'});await started;
   // Existing due rows from earlier cases make bounded batches realistic.
   for(let i=0;i<3&&objects.has(key);i++)expect((await sweep()).status).toBe(200);
-  expect((await fetch(endpoint+key)).status).toBe(404);expect((await fetch(endpoint+unrelated)).status).toBe(200);
+  expect((await fetch(endpoint+key)).status).toBe(404);expect((await fetch(endpoint+outputKey)).status).toBe(200);expect((await fetch(endpoint+unrelated)).status).toBe(200);
   expect((await db`SELECT deleted_at FROM content_retention WHERE object_key=${key.slice('/upload/'.length)}`)[0].deleted_at).toBeTruthy();
   releaseWrite();expect((await pendingWrite).status).toBe(200);expect((await fetch(endpoint+key)).status).toBe(200);
   for(let i=0;i<3&&objects.has(key);i++)expect((await sweep()).status).toBe(200);
   expect((await fetch(endpoint+key)).status).toBe(404);
-  expect((await db`SELECT disposition,delivered_at FROM orders WHERE id=${o.id}`)[0]).toMatchObject({disposition:'unresolved',delivered_at:null});
+  // The later output deadline is independent of the already expired upload.
+  await new Promise(r=>setTimeout(r,Math.max(0,Date.parse(expiresAt)-Date.now()+100)));
+  for(let i=0;i<3&&objects.has(outputKey);i++)expect((await sweep()).status).toBe(200);
+  expect((await fetch(endpoint+outputKey)).status).toBe(404);
+  expect((await db`SELECT deleted_at FROM content_retention WHERE kind='output' AND object_key=${o.key}`)[0].deleted_at).toBeTruthy();
+  expect((await db`SELECT to_jsonb(orders) AS record FROM orders WHERE id=${o.id}`)[0].record).toEqual(before);
+  const registrarEnv=parseEnv(readFileSync(`${process.env.PROVISIONING_ENV_DIR}/database-registrar.env`,'utf8')),registrar=neon(registrarEnv.DATABASE_URL_UNPOOLED);
+  expect((await registrar`SELECT mend_refund_fence(${o.id}::uuid) AS result`)[0].result).toMatchObject({reason:'delivery_preferred'});
+  expect((await db`SELECT count(*)::int AS n FROM refunds WHERE order_id=${o.id}`)[0].n).toBe(0);
  }finally{releaseWrite();await service?.close();server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));}
 });
 
@@ -118,6 +131,22 @@ test('fresh trusted postexpiry absence permits the separate registrar normal ori
   await db`UPDATE orders SET paid_at=clock_timestamp()-interval '8 days',payer_wallet=${payer},payment_transaction=${transaction},payment_receipt=${JSON.stringify({status:'success',blockNumber:'1',blockHash:'0x'+'12'.repeat(32),amountAtomic:'1000000',decimals:6,gasUsed:'1',effectiveGasPrice:'1'})}::jsonb,terms=${JSON.stringify(terms)}::jsonb WHERE id=${o.id}`;
   const registrarEnv=parseEnv(readFileSync(`${process.env.PROVISIONING_ENV_DIR}/database-registrar.env`,'utf8')),registrar=neon(registrarEnv.DATABASE_URL_UNPOOLED);
   const payment={transaction,payer,amountAtomic:'1000000',chainId:'5042002',checkedAt:new Date().toISOString()};
+  // A newer observation must invalidate both the immutable proof and the still-fresh refund check.
+  for(const outcome of ['object_present','storage_unknown']){
+   if(outcome==='storage_unknown'){
+    const held=db.transaction([db`SELECT mend_retention_finish('output',${o.key},${outcome})`,db`SELECT pg_sleep(2)`]);
+    await expect.poll(async()=>(await db`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND wait_event='PgSleep'`)[0].n).toBeGreaterThan(0);
+    const fence=registrar`SELECT mend_refund_fence(${o.id}::uuid,${JSON.stringify({...payment,checkedAt:new Date().toISOString()})}::jsonb) AS result`;
+    expect(await Promise.race([fence.then(()=> 'finished'),new Promise<string>(r=>setTimeout(()=>r('waiting'),100))])).toBe('waiting');
+    await held;expect((await fence)[0].result).toMatchObject({reason:'output_unknown'});
+   }else await db`SELECT mend_retention_finish('output',${o.key},${outcome})`;
+   expect((await db`SELECT mend_postexpiry_valid(${o.id}::uuid) AS valid`)[0].valid).toBe(false);
+   expect((await registrar`SELECT mend_refund_fence(${o.id}::uuid,${JSON.stringify({...payment,checkedAt:new Date().toISOString()})}::jsonb) AS result`)[0].result).toMatchObject({reason:'output_unknown'});
+   expect((await db`SELECT outcome FROM refund_checks WHERE order_id=${o.id}`)[0].outcome).toBe('absent');
+   await db`SELECT mend_retention_finish('output',${o.key},'absent')`;
+   expect((await db`SELECT mend_postexpiry_check(${o.id}::uuid,${JSON.stringify([o.attempt])}::jsonb) AS valid`)[0].valid).toBe(true);
+   await db`SELECT mend_refund_output_check(${o.id}::uuid,${JSON.stringify([o.attempt])}::jsonb,'absent')`;
+  }
   const grant=(await registrar`SELECT mend_refund_fence(${o.id}::uuid,${JSON.stringify(payment)}::jsonb) AS result`)[0].result;
   expect(grant).toMatchObject({order_id:o.id,payer,amount_atomic:'1000000',state:'registration_pending'});
 
