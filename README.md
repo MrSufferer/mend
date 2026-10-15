@@ -1,9 +1,14 @@
 # Mend
 
-Provisioning handoff for [issue #1](https://github.com/MrSufferer/mend/issues/1).
+Mend converts a paid text PDF into private plain text, tracks interrupted execution, and recovers from durable evidence. Purchases use x402 on Arc testnet; the recovery desk uses paying-wallet SIWE authentication. All amounts are **test USDC**.
 
-- [Credential setup](docs/credential-setup.md)
-- [Provisioning evidence and implementation follow-through](docs/provisioning-status.md)
-- [Public configuration and verification results](docs/provisioning-status.json)
+- [Release setup, deployment inputs and remaining acceptance gates](docs/release.md)
+- [Programmatic purchase and private tracking](docs/release-customer.md)
+- [Labeled recovery demonstrations and evidence](docs/release-demonstrations.md)
+- [Provider exposure, retention and authority](docs/release-trust.md)
+- [Licensing and dependency inventory](docs/release-licenses.md)
+- [Isolated process-crash and concurrency suite](docs/recovery-lifecycle.md)
 
-[Private unpaid submission API and runnable client](docs/unpaid-orders.md) are implemented in issue #2. Paid processing, settlement, and recovery remain dependent-ticket work. Secrets remain in private local or service environments.
+The source implements paid conversion, recovery, isolated refund registration and repayment, service health, and independent upload/output retention. Historical provider proofs remain dated observations. A protected preview or a passing fixture suite does not establish a publicly accepted release; the [release status](docs/release.md#acceptance-status) lists the remaining gates.
+
+Project code is [MIT licensed](LICENSE). Dependencies retain their own licenses.

@@ -72,7 +72,7 @@ return {async fetch(request:Request){
   }catch{if(id)try{await database().execute(sql`SELECT public.mend_health_registrar(${id}::uuid,'failed')`);}catch{/* Expired work cannot be completed. */}return Response.json({error:'payment_or_capacity_unavailable'},{status:503});}
  }
  if(request.method!=='POST'||!['/register','/operator','/probe','/capacity','/agent'].includes(path))return Response.json({error:'not_found'},{status:404});
- if(!authorized(request,path==='/operator'?'OPERATOR_REGISTRAR_SECRET':path==='/agent'?'AGENT_REGISTRAR_SECRET':'REGISTRAR_SERVICE_SECRET'))return Response.json({error:'unauthorized'},{status:401});
+ if(!authorized(request,path==='/operator'?'OPERATOR_REGISTRAR_SECRET':path==='/agent'?'AGENT_REGISTRAR_SECRET':'REGISTRAR_SERVICE_SECRET')&&!(path==='/operator'&&authorized(request,'WEB_OPERATOR_REGISTRAR_SECRET')))return Response.json({error:'unauthorized'},{status:401});
  let requestId:string|undefined;
  try{
   if(path==='/probe'){const identity=await database().execute(sql`SELECT current_user AS role,has_table_privilege(current_user,'auth_sessions','SELECT') AS sessions,has_column_privilege(current_user,'orders','result','UPDATE') AS output_write`);return Response.json({identity:identity.rows[0],storageCredentialsAbsent:['AWS_ACCESS_KEY_ID','AWS_SECRET_ACCESS_KEY','AWS_SESSION_TOKEN'].every(name=>!process.env[name]||process.env[name]==='disabled'),excludedSigningCredentialsAbsent:['ADMINISTRATOR_PRIVATE_KEY','MERCHANT_PRIVATE_KEY','PURCHASER_PRIVATE_KEY','REFUND_PRIVATE_KEY','OPENROUTER_API_KEY','SESSION_SECRET'].every(name=>!process.env[name]||process.env[name]==='disabled')});}

@@ -27,6 +27,6 @@ async function submit(order:string,kind:'registrar'|'refund',binding:RefundBindi
  });
 }
 const name=process.env.RECOVERY_SERVICE;
-const service=name==='agent'?createAgentService({modelFetch:async(_input,init)=>fetch(effects+'/model',init)}):name==='registrar'?createRegistrarService({submit}):name==='refund'?createRefundService({submit}):name==='receipts'?receipts:conversion;
+const service=name==='agent'?createAgentService(process.env.RECOVERY_LIVE_MODEL==='explicit-live-acceptance'?{}:{modelFetch:async(_input,init)=>fetch(effects+'/model',init)}):name==='registrar'?createRegistrarService({submit}):name==='refund'?createRefundService({submit}):name==='receipts'?receipts:conversion;
 const server=createServer(async(req,res)=>{try{const chunks=[];for await(const chunk of req)chunks.push(chunk);const response=await service.fetch(new Request('http://owned'+req.url,{method:req.method,headers:req.headers as Record<string,string>,body:['GET','HEAD'].includes(req.method!)?undefined:Buffer.concat(chunks)}));res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));}catch{res.writeHead(500);res.end('{}');}});
 server.listen(Number(process.env.RECOVERY_SERVICE_PORT??0),'127.0.0.1',()=>console.log('READY:'+(server.address() as {port:number}).port));
