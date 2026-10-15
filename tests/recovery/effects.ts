@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {encodeAbiParameters,encodeEventTopics,keccak256,toFunctionSelector,type Hex} from 'viem';
 import {reserve,token,reserveAbi,tokenAbi,signerAddresses} from '../../backend/refund-chain';
 const file=process.env.RECOVERY_EFFECT_FILE!;
-const state=existsSync(file)?JSON.parse(readFileSync(file,'utf8')):{objects:{},charges:[],transactions:{},registrations:[],refunds:[],events:[],modelCalls:0,balance:'10000000',allowance:'10000000',offset:0,unknown:false,hideReceipts:false,modelTool:null,height:99,blocks:{}};
+const state=existsSync(file)?JSON.parse(readFileSync(file,'utf8')):{objects:{},charges:[],transactions:{},pendingTransactions:{},deferMining:false,registrations:[],refunds:[],events:[],modelCalls:0,balance:'10000000',allowance:'10000000',offset:0,unknown:false,hideReceipts:false,modelTool:null,height:99,blocks:{}};
 function save(){writeFileSync(file+'.new',JSON.stringify(state),{mode:0o600});renameSync(file+'.new',file);}
 const holds=new Map<string,(()=>void)[]>();
 async function boundary(name:string){state.events.push(name);save();if(holds.has(name))await new Promise<void>(r=>holds.get(name)!.push(r));}
@@ -14,14 +14,21 @@ function mine(){const number=++state.height,hash='0x'+createHash('sha256').updat
 if(!state.blocks[state.height])mine();
 function paymentReceipt(charge:any){const b=state.blocks[charge.block],base={address:token,blockNumber:b.number,blockHash:b.hash,transactionHash:charge.hash,transactionIndex:'0x0',removed:false};return receipt(charge.hash,charge.payer,charge.merchant,[{...base,logIndex:'0x0',topics:encodeEventTopics({abi:tokenAbi,eventName:'AuthorizationUsed',args:{authorizer:charge.payer,nonce:charge.nonce}}),data:'0x'},{...base,logIndex:'0x1',topics:encodeEventTopics({abi:tokenAbi,eventName:'Transfer',args:{from:charge.payer,to:charge.merchant}}),data:encodeAbiParameters([{type:'uint256'}],[BigInt(1000000)])}],b);}
 function receipt(hash:string,from:string,to:string,logs:any[],b:any){return {transactionHash:hash,transactionIndex:'0x0',blockHash:b.hash,blockNumber:b.number,from,to,contractAddress:null,cumulativeGasUsed:'0x5208',gasUsed:'0x5208',effectiveGasPrice:'0x1',status:'0x1',type:'0x2',logsBloom:'0x'+'00'.repeat(256),logs};}
+function includeTransaction(b:any){const hash=keccak256(b.raw),kind=b.kind,r=b.binding;if(state.transactions[hash])return;
+   if(kind==='refund'&&(BigInt(state.balance)<BigInt(1000000)||BigInt(state.allowance)<BigInt(1000000)||state.refunds.includes(r.chain_order_id)))throw Error('contract_denied');
+   if(kind==='refund'){state.balance=String(BigInt(state.balance)-BigInt(1000000));state.allowance=String(BigInt(state.allowance)-BigInt(1000000));state.refunds.push(r.chain_order_id);}else state.registrations.push(r.chain_order_id);
+   state.pendingBinding=r;const logs:any[]=[{address:reserve,topics:encodeEventTopics({abi:reserveAbi,eventName:kind==='refund'?'Refunded':'EntitlementRegistered',args:{orderId:r.chain_order_id,payer:r.payer}}),data:encodeAbiParameters(kind==='refund'?[{type:'uint256'},{type:'uint256'}]:[{type:'uint256'}],kind==='refund'?[BigInt(1000000),BigInt(Math.floor(Date.now()/86400000))]:[BigInt(1000000)])}];
+   if(kind==='refund')logs.push({address:token,topics:encodeEventTopics({abi:tokenAbi,eventName:'Transfer',args:{from:reserve,to:r.payer}}),data:encodeAbiParameters([{type:'uint256'}],[BigInt(1000000)])});
+   state.transactions[hash]={kind,binding:r,rawHash:hash,receipt:receipt(hash,signerAddresses[kind as 'refund'|'registrar'],reserve,logs,mine())};
+ delete state.pendingBinding;delete state.pendingTransactions[hash];save();}
 async function body(req:AsyncIterable<Buffer>){const chunks=[];for await(const chunk of req)chunks.push(chunk);return Buffer.concat(chunks);}
 const server=createServer(async(req,res)=>{try{
  const url=new URL(req.url!,'http://fixture'),path=url.pathname,bytes=await body(req);
  const json=(value:unknown,status=200)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(value));};
  if(path==='/control'){
   const c=JSON.parse(bytes.toString());if(c.hold)holds.set(c.hold,[]);if(c.release){const waiting=holds.get(c.release)??[];holds.delete(c.release);waiting.forEach(r=>r());}
-  if(c.reset){for(const waiting of holds.values())waiting.forEach(r=>r());holds.clear();Object.assign(state,{objects:{},charges:[],transactions:{},registrations:[],refunds:[],events:[],modelCalls:0,balance:'10000000',allowance:'10000000',offset:0,unknown:false,hideReceipts:false,orphan:false,modelTool:null});mine();}
-  for(const key of ['balance','allowance','offset','unknown','hideReceipts','modelTool','orphan'])if(key in c)state[key]=c[key];if(['offset','balance','allowance'].some(k=>k in c))mine();if(c.clearEvents)state.events=[];save();json({ok:true});return;
+  if(c.reset){for(const waiting of holds.values())waiting.forEach(r=>r());holds.clear();Object.assign(state,{objects:{},charges:[],transactions:{},pendingTransactions:{},deferMining:false,registrations:[],refunds:[],events:[],modelCalls:0,balance:'10000000',allowance:'10000000',offset:0,unknown:false,hideReceipts:false,orphan:false,modelTool:null});mine();}
+  for(const key of ['balance','allowance','offset','unknown','hideReceipts','modelTool','orphan','deferMining'])if(key in c)state[key]=c[key];if(['offset','balance','allowance'].some(k=>k in c))mine();if(c.minePending)for(const pending of Object.values(state.pendingTransactions))includeTransaction(pending);if(c.clearEvents)state.events=[];save();json({ok:true});return;
  }
  if(path==='/state'){json(state);return;}
  if(path==='/boundary'){await boundary(JSON.parse(bytes.toString()).name);json({ok:true});return;}
@@ -39,15 +46,10 @@ const server=createServer(async(req,res)=>{try{
   await boundary('settlement');json({success:true,payer:a.from,transaction:charge.hash,network:'eip155:5042002'});return;
  }
  if(path==='/chain'){
-  const b=JSON.parse(bytes.toString()),hash=keccak256(b.raw),kind=b.kind,r=b.binding;
-  if(!state.transactions[hash]){
-   if(kind==='refund'&&(BigInt(state.balance)<BigInt(1000000)||BigInt(state.allowance)<BigInt(1000000)||state.refunds.includes(r.chain_order_id)))throw Error('contract_denied');
-   if(kind==='refund'){state.balance=String(BigInt(state.balance)-BigInt(1000000));state.allowance=String(BigInt(state.allowance)-BigInt(1000000));state.refunds.push(r.chain_order_id);}else state.registrations.push(r.chain_order_id);
-   state.pendingBinding=r;const logs:any[]=[{address:reserve,topics:encodeEventTopics({abi:reserveAbi,eventName:kind==='refund'?'Refunded':'EntitlementRegistered',args:{orderId:r.chain_order_id,payer:r.payer}}),data:encodeAbiParameters(kind==='refund'?[{type:'uint256'},{type:'uint256'}]:[{type:'uint256'}],kind==='refund'?[BigInt(1000000),BigInt(Math.floor(Date.now()/86400000))]:[BigInt(1000000)])}];
-   if(kind==='refund')logs.push({address:token,topics:encodeEventTopics({abi:tokenAbi,eventName:'Transfer',args:{from:reserve,to:r.payer}}),data:encodeAbiParameters([{type:'uint256'}],[BigInt(1000000)])});
-   state.transactions[hash]={kind,binding:r,rawHash:hash,receipt:receipt(hash,signerAddresses[kind as 'refund'|'registrar'],reserve,logs,mine())};
-  }
-  delete state.pendingBinding;await boundary(kind+'-included');json({hash});return;
+  const b=JSON.parse(bytes.toString()),hash=keccak256(b.raw);
+  if(state.deferMining&&!state.transactions[hash]){state.pendingTransactions[hash]??=b;save();await boundary(b.kind+'-submitted');}
+  else{includeTransaction(b);await boundary(b.kind+'-included');}
+  json({hash});return;
  }
  if(path==='/rpc'){
   const b=JSON.parse(bytes.toString());let result:any=null;

@@ -39,8 +39,8 @@ The harness starts its own Next server and backend processes on random loopback 
 | Model invocation killed and restarted | Twelve real SDK dispatch claims persist; the actual 60-second deadline expires; another dispatch is denied and deterministic repayment continues. |
 | Registrar signed bytes and refund inclusion | Kill/restart reuses durable operation/nonce; missing receipts stay unresolved; concurrent replay pays the original payer once. |
 | Operator and agent request the purchased retry | Concurrent HTTP requests claim only the single permitted retry generation. |
-| Late publication and entitlement disposition | A verified late result prevents entitlement; an existing entitlement rejects stale publication and repays once. |
-| Aggregate debt, reserve and allowance | Signed unbroadcast refunds remain debt; affordable refunds progress during a deficit; blockers remain durable; refill and fresh UTC observations permit deterministic continuation. |
+| Late publication and entitlement disposition | A verified late result prevents entitlement; after entitlement the same conversion-role status write accepted by an unfenced terminal control fails specifically with `refund_disposition_fenced`, and repayment completes once. |
+| Aggregate debt, reserve and allowance | Signed unbroadcast and submitted unmined refunds remain debt; a pending operation prevents competing overspend across restart; affordable refunds progress during a deficit; refill and fresh UTC observations permit deterministic continuation. |
 | Purchase policy and incident pause | Later policy changes preserve purchased terms; pausing new purchases leaves paid recovery and the purchased retry available. |
 | Retention deletion interrupted | Real object absence survives restart while an uncertain paid obligation stays visible. |
 | Health retrieval and resume proof | Retrieval interrupted before persistence cannot invent a pass; later real conversion failure invalidates old proofs across restart. |

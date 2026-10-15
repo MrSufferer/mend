@@ -26,7 +26,10 @@ export async function lifecycle(){
  const expectedRoles:Record<string,string>={migration:'neondb_owner','database-web':'mend_web','database-conversion':'mend_conversion','database-worker':'mend_worker','database-registrar':'mend_registrar','database-refund-worker':'mend_refund_worker','database-payment-reconciler':'mend_ticket16_receipts'};
  for(const name of roleNames){const identity=await neon(envs[name].DATABASE_URL)`SELECT current_database() AS database,current_user AS role`;if(identity[0].database!==guard||identity[0].role!==expectedRoles[name])throw Error('Isolated database/role identity mismatch: '+name);}
  const owner=neon(envs.migration.DATABASE_URL);
- if(Number((await owner`SELECT count(*) AS n FROM drizzle.__drizzle_migrations`)[0].n)!==47)throw Error('Expected final ticket15 migration prefix (47 migrations)');
+ const journal=JSON.parse(readFileSync('drizzle/meta/_journal.json','utf8'));
+ const expectedHashes=journal.entries.map((entry:{tag:string})=>createHash('sha256').update(readFileSync(join('drizzle',entry.tag+'.sql'))).digest('hex'));
+ const applied=await owner`SELECT hash FROM drizzle.__drizzle_migrations ORDER BY created_at,id`;
+ if(expectedHashes.length!==47||applied.length!==expectedHashes.length||applied.some((row,index)=>row.hash!==expectedHashes[index]))throw Error('Expected exact ticket15 migration prefix through 0046_private_retention');
  await owner`CREATE TABLE IF NOT EXISTS recovery_acceptance_marker (name text PRIMARY KEY CHECK(name='mend_ticket16_lifecycle'))`;
  await owner`INSERT INTO recovery_acceptance_marker(name) VALUES('mend_ticket16_lifecycle') ON CONFLICT DO NOTHING`;
  const policyBaseline=await owner`SELECT * FROM recovery_policies`;
@@ -98,6 +101,11 @@ export async function lifecycle(){
   const payment=Buffer.from(JSON.stringify({x402Version:2,accepted:requirements,payload:{authorization,signature}})).toString('base64');
   return {id:order.id,submission:s.id,terms:order.terms,request,headers,payment,async pay(){return request.post(`/api/orders/${order.id}/payment`,{headers:{...headers,'PAYMENT-SIGNATURE':payment},timeout:90000});}};
  }
+ async function paidWithPausedExecution(playwright:Playwright){
+  await web.kill();web=await launch('web',{...webEnv,CONVERSION_FUNCTION_URL:''},webPort);
+  const purchase=await draft(playwright);expect((await purchase.pay()).status()).toBe(200);
+  await services.conversion.kill();await backend('conversion',{INTERRUPTION_EXPERIMENT_ORDER:purchase.id});return purchase;
+ }
  async function seed(options:{stopped?:boolean;paidAgoSeconds?:number;calls?:number;prepared?:boolean;expired?:boolean}={}){
   const id=randomUUID(),submission=randomUUID(),attempt=randomUUID(),terms=purchasedTerms(defaultPolicy,'ticket16-synthetic'),key=`results/${id}/${attempt}.txt`,now=new Date(Date.now()-(options.expired?8*86400000:0)).toISOString();
   const sha=createHash('sha256').update('Synthetic retained result').digest('hex'),publication={state:'prepared',key,sha256:sha,size:25,preparedAt:now};
@@ -108,7 +116,7 @@ export async function lifecycle(){
   if(options.calls!==undefined)await owner`INSERT INTO recovery_cases(order_id,calls_used) VALUES(${id},${options.calls})`;
   return {id,attempt,submission,key,publication};
  }
- return {role:(name:string)=>neon(envs[name].DATABASE_URL),get web(){return web;},origin,services,owner,artifact,secret,common,control,state,event,call,signIn,draft,seed,
+ return {role:(name:string)=>neon(envs[name].DATABASE_URL),get web(){return web;},origin,services,owner,artifact,secret,common,control,state,event,call,signIn,draft,paidWithPausedExecution,seed,
   async restartWeb(extra:Record<string,string>={}){await web.kill();web=await launch('web',{...webEnv,...extra},webPort);},
   async restartEffects(){await effects.kill();effects=await launch('effects',{RECOVERY_EFFECT_FILE:join(artifact,'effects.json'),RECOVERY_EFFECT_PORT:String(effectPort)},effectPort);},
   async restart(name:string,extra:Record<string,string>={}){await services[name].kill();return backend(name,extra);},

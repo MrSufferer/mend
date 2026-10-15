@@ -36,15 +36,10 @@ test('an orphan-block payment receipt never becomes customer-visible paid state'
  await purchase.request.dispose();
 });
 
-async function delayedPurchase(playwright:Parameters<Lifecycle['draft']>[0]){
- await h.restartWeb({CONVERSION_FUNCTION_URL:''});
- const purchase=await h.draft(playwright);expect((await purchase.pay()).status()).toBe(200);
- await h.restart('conversion',{INTERRUPTION_EXPERIMENT_ORDER:purchase.id});
- return purchase;
-}
+
 async function projected(purchase:Awaited<ReturnType<Lifecycle['draft']>>){const r=await purchase.request.get(`/api/orders/${purchase.id}`);expect(r.status()).toBe(200);return r.json();}
 test('hard-killed parser remains unknown across stop requests and duplicate conversion deliveries',async({playwright})=>{
- const purchase=await delayedPurchase(playwright),pid=h.services.conversion.pid;
+ const purchase=await h.paidWithPausedExecution(playwright),pid=h.services.conversion.pid;
  await h.call('conversion','/experiment',{orderId:purchase.id,mode:'noack'}).catch(()=>null);
  await h.restart('conversion');expect(h.services.conversion.pid).not.toBe(pid);
  await h.call('conversion','/stop',{orderId:purchase.id});
@@ -56,7 +51,7 @@ test('hard-killed parser remains unknown across stop requests and duplicate conv
  await purchase.request.dispose();
 });
 test('hard kill after output PUT preserves unknown publication and never fabricates refund or delivery',async({playwright})=>{
- const purchase=await delayedPurchase(playwright);await h.control({hold:'output-put'});
+ const purchase=await h.paidWithPausedExecution(playwright);await h.control({hold:'output-put'});
  const work=h.call('conversion','/',{orderId:purchase.id}).catch(()=>null);await h.event('output-put');
  await h.services.conversion.kill();await work;await h.restartEffects();await h.restart('conversion');
  await h.call('conversion','/stop',{orderId:purchase.id});await h.call('conversion','/reconcile',{orderId:purchase.id});
@@ -66,7 +61,7 @@ test('hard kill after output PUT preserves unknown publication and never fabrica
  await purchase.request.dispose();
 });
 test('cooperatively stopped publication restores original private output after process restart',async({playwright})=>{
- const purchase=await delayedPurchase(playwright),before=await projected(purchase);
+ const purchase=await h.paidWithPausedExecution(playwright),before=await projected(purchase);
  expect((await h.call('conversion','/experiment',{orderId:purchase.id,mode:'publication'})).status).toBe(200);
  const pid=h.services.conversion.pid;await h.restart('conversion');expect(h.services.conversion.pid).not.toBe(pid);
  await Promise.all([h.call('conversion','/reconcile',{orderId:purchase.id}),h.call('registrar','/register',{orderId:purchase.id})]);
@@ -78,7 +73,7 @@ test('cooperatively stopped publication restores original private output after p
  expect((await stranger.get(`/api/orders/${purchase.id}/result`)).status()).toBe(404);await stranger.dispose();await purchase.request.dispose();
 });
 test('cooperative SIGINT confirms whole execution stop while a hard kill cannot',async({playwright})=>{
- const purchase=await delayedPurchase(playwright);
+ const purchase=await h.paidWithPausedExecution(playwright);
  await h.call('conversion','/experiment',{orderId:purchase.id,mode:'shutdown'}).catch(()=>null);await h.restart('conversion');
  await h.call('conversion','/reconcile',{orderId:purchase.id});const order=await projected(purchase);
  expect(order.recovery.execution).toBe('stopped');expect(order.recovery.attempts[0].executionStoppedAt).toBeTruthy();expect(order.recovery.attempts[0].parserExitedAt).toBeTruthy();
@@ -128,6 +123,25 @@ test('a signed unbroadcast refund remains aggregate debt until canonical repayme
  await h.services.refund.kill();await pending;await h.restartEffects();await h.restart('refund');await h.call('refund','/reconcile',{orderId:fixture.id});
  const after=await (await h.call('registrar','/capacity',{})).json();expect(after.orders).toBe(0);expect(after.debtAtomic).toBe('0');expect((await h.state()).refunds).toHaveLength(1);
 });
+test('submitted unmined refunds retain aggregate debt and block competing overspend across restart',async()=>{
+ const first=await fenced(),second=await fenced();
+ for(const f of [first,second])expect((await (await h.call('registrar','/register',{orderId:f.id})).json()).status).toBe('registered');
+ await h.control({balance:'1000000',allowance:'1000000',deferMining:true});
+ await h.call('refund','/reconcile',{orderId:first.id});
+ const submitted=await h.owner`SELECT hash,state FROM refund_transactions WHERE order_id=${first.id} AND kind='refund'`;
+ expect(submitted[0].state).toBe('submitted');
+ await h.restart('refund');await h.restart('registrar');await h.restartEffects();
+ await h.call('refund','/reconcile',{orderId:first.id});
+ const blocked=await (await h.call('refund','/reconcile',{orderId:second.id})).json();expect(blocked.reason).toBe('signer_receipt_pending');
+ const capacity=await (await h.call('registrar','/capacity',{})).json();expect(capacity.orders).toBe(2);expect(capacity.debtAtomic).toBe('2000000');
+ expect((await h.state()).refunds).toHaveLength(0);expect(Object.keys((await h.state()).pendingTransactions)).toHaveLength(1);
+ expect((await h.owner`SELECT hash FROM refund_transactions WHERE order_id=${first.id} AND kind='refund'`)[0].hash).toBe(submitted[0].hash);
+ await h.control({deferMining:false,minePending:true});await h.call('refund','/reconcile',{orderId:first.id});
+ expect((await (await h.call('refund','/reconcile',{orderId:second.id})).json()).reason).toBe('reserve_unfunded');
+ const remaining=await (await h.call('registrar','/capacity',{})).json();expect(remaining.orders).toBe(1);expect(remaining.debtAtomic).toBe('1000000');
+ await h.control({balance:'1000000',allowance:'1000000'});await h.call('refund','/reconcile',{orderId:second.id});
+ expect((await h.state()).refunds).toHaveLength(2);expect((await (await h.call('registrar','/capacity',{})).json()).debtAtomic).toBe('0');
+});
 test('refund inclusion survives worker and chain-fixture death, missing receipt stays unresolved, replay pays once',async({playwright})=>{
  const fixture=await fenced();expect(await (await h.call('registrar','/register',{orderId:fixture.id})).json()).toMatchObject({status:'registered'});
  await h.control({hold:'refund-included'});const pending=h.call('refund','/reconcile',{orderId:fixture.id}).catch(()=>null);await h.event('refund-included');
@@ -143,7 +157,7 @@ test('refund inclusion survives worker and chain-fixture death, missing receipt 
 });
 
 test('concurrent real operator and model retry requests claim only the sole purchased generation',async({playwright})=>{
- const purchase=await delayedPurchase(playwright);await h.call('conversion','/experiment',{orderId:purchase.id,mode:'failure'});
+ const purchase=await h.paidWithPausedExecution(playwright);await h.call('conversion','/experiment',{orderId:purchase.id,mode:'failure'});
  const original=await projected(purchase);await h.control({modelTool:'retry_once',hold:'input-read'});
  const agent=h.call('agent','/investigate',{orderId:purchase.id});
  const operator=purchase.request.post(`/api/operator/orders/${purchase.id}/actions`,{headers:{Origin:h.origin},data:{action:'retry'}});
@@ -199,12 +213,13 @@ test('publication-first recovery after the purchased deadline forbids a later en
  const fence=await h.role('database-registrar')`SELECT mend_refund_fence(${fixture.id}::uuid) AS result`;expect(fence[0].result.reason).toBe('delivery_preferred');
  expect((await (await h.call('registrar','/register',{orderId:fixture.id})).json()).status).toBe('delivered');expect((await h.state()).refunds).toHaveLength(0);await request.dispose();
 });
-test('entitlement-first ordering rejects a stale publisher and repays once',async({playwright})=>{
+test('entitlement-first disposition rejects stale conversion completion and repays once',async({playwright})=>{
+ // The same terminal execution can write status before entitlement. This control
+ // isolates disposition from publisher terminality and conversion-role permission.
+ const control=await h.seed({stopped:true,calls:12});
+ await h.role('database-conversion')`UPDATE orders SET status='delivered' WHERE id=${control.id}`;
  const fixture=await fenced();
- // Entitlement wins the authoritative disposition lock. A stale publisher has no delivery authority.
- const publication={state:'prepared',key:fixture.key,size:4,sha256:'a'.repeat(64),preparedAt:new Date().toISOString()};
- const prepared=await h.role('database-conversion')`SELECT mend_prepare_output(${fixture.attempt}::uuid,${JSON.stringify(publication)}::jsonb) AS result`;
- expect(prepared[0].result).toBe(false);
+ await expect(h.role('database-conversion')`UPDATE orders SET status='delivered' WHERE id=${fixture.id}`).rejects.toThrow('refund_disposition_fenced');
  const request=await playwright.request.newContext({baseURL:h.origin});await h.signIn(request);
  await h.call('conversion','/reconcile',{orderId:fixture.id});
  expect((await (await request.get(`/api/orders/${fixture.id}`)).json()).result).toBeNull();
@@ -225,7 +240,7 @@ test('fresh UTC allowance observation replaces an exhausted prior-day snapshot a
  await h.call('refund','/reconcile',{orderId:fixture.id});expect((await h.state()).refunds).toHaveLength(1);
 });
 test('purchase policy survives later configuration and purchase pause while paid recovery continues',async({playwright})=>{
- const purchase=await delayedPurchase(playwright);await h.call('conversion','/experiment',{orderId:purchase.id,mode:'failure'});
+ const purchase=await h.paidWithPausedExecution(playwright);await h.call('conversion','/experiment',{orderId:purchase.id,mode:'failure'});
  const original=await projected(purchase);
  await h.owner`INSERT INTO recovery_policies(id,created_at,policy) VALUES(gen_random_uuid(),clock_timestamp()+interval '1 second','{"deliverySeconds":1,"maxRetries":0,"automaticRefundAllowance":"1"}'::jsonb)`;
  expect((await purchase.request.post('/api/operator/service',{headers:{Origin:h.origin},data:{reason:'Owned lifecycle controlled incident'}})).status()).toBe(200);

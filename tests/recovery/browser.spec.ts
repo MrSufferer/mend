@@ -30,14 +30,10 @@ async function switchWallet(page:Page){
  await expect(page.getByText('Authenticated',{exact:true})).toHaveCount(0);
  await expect.poll(async()=>(await page.request.get(h.origin+'/api/auth/session')).status()).toBe(401);
 }
-async function purchaseWithPausedExecution(playwright:Parameters<Lifecycle['draft']>[0]){
- await h.restartWeb({CONVERSION_FUNCTION_URL:''});
- const purchase=await h.draft(playwright);expect((await purchase.pay()).status()).toBe(200);
- await h.restart('conversion',{INTERRUPTION_EXPERIMENT_ORDER:purchase.id});return purchase;
-}
+
 
 test('narrow keyboard flow shows durable uncertainty and a customer-safe timeline after worker death',async({page,playwright})=>{
- const purchase=await purchaseWithPausedExecution(playwright);
+ const purchase=await h.paidWithPausedExecution(playwright);
  await h.call('conversion','/experiment',{orderId:purchase.id,mode:'noack'}).catch(()=>null);
  await h.restart('conversion');await h.call('conversion','/stop',{orderId:purchase.id});
  await h.call('conversion','/reconcile',{orderId:purchase.id});
@@ -58,7 +54,7 @@ test('narrow keyboard flow shows durable uncertainty and a customer-safe timelin
 });
 
 test('restored private result downloads from the keyboard and disappears on wallet switch',async({page,playwright})=>{
- const purchase=await purchaseWithPausedExecution(playwright);
+ const purchase=await h.paidWithPausedExecution(playwright);
  expect((await h.call('conversion','/experiment',{orderId:purchase.id,mode:'publication'})).status).toBe(200);
  await h.restart('conversion');await h.call('conversion','/reconcile',{orderId:purchase.id});
  await connect(page);await signIn(page);await expect(page.getByText(purchase.id,{exact:true})).toBeVisible();
@@ -91,7 +87,7 @@ test('rejection, expired challenge and expired session offer fresh real-signatur
 });
 
 test('wallet switch during an in-flight restored result download prevents opening private bytes',async({page,playwright})=>{
- const purchase=await purchaseWithPausedExecution(playwright);
+ const purchase=await h.paidWithPausedExecution(playwright);
  expect((await h.call('conversion','/experiment',{orderId:purchase.id,mode:'publication'})).status).toBe(200);
  await h.restart('conversion');await h.call('conversion','/reconcile',{orderId:purchase.id});
  await connect(page);await signIn(page);await expect(page.getByText(purchase.id,{exact:true})).toBeVisible();
