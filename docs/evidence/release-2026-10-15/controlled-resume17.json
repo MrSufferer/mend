@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "sha": "96e05307dc6dcfa469eae69d1f95b043fdd42a6a",
+  "sourceTarSha256": "3830fffe2b80dccebe3df066d676953db0d56574f8e2bbc4f8c40563ed37add3",
+  "at": "2026-10-15T18:54:07.249060+00:00",
+  "testsPassed": 2,
+  "tests": [
+    "operator proves real PDF execution and authenticated private retrieval; health alone never resumes",
+    "resume deliberately repeats actual execution and atomically opens only after fresh authenticated retrieval"
+  ],
+  "database": "mend_ticket14_health",
+  "externalProviders": "controlled chain, facilitator and object storage; actual parser, SQL and HTTP",
+  "financialActions": 0,
+  "modelCalls": 0,
+  "mainAvailabilityChanged": false,
+  "logSha256": "b17f7afe168218444f1a4938cdfad21befef92b7fd57fee57401a055c3871d47",
+  "fixtureSetup": {
+    "legacyJournalEntries": 45,
+    "healthSchemaAlreadyPresent": true,
+    "retentionMigrationAppended": "0046_private_retention.sql",
+    "fullOrderedJournalReplayClaim": false
+  },
+  "setupLimits": "Initial parent Yarn PnP discovery and missing legacy fixture retention schema failed before successful run. Exact source archive was run outside ancestor workspace; retention SQL applied only to guarded isolated fixture. No application-source changes."
+}
