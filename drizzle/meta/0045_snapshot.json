@@ -2044,6 +2044,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "failed_components": {
+          "name": "failed_components",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
         "diagnostic": {
           "name": "diagnostic",
           "type": "text",
@@ -2149,6 +2156,10 @@
         "service_health_runs_status_check": {
           "name": "service_health_runs_status_check",
           "value": "\"service_health_runs\".\"status\" IN ('running','passed','failed','unknown')"
+        },
+        "service_health_runs_failed_components_check": {
+          "name": "service_health_runs_failed_components_check",
+          "value": "\"service_health_runs\".\"failed_components\" <@ ARRAY['validation','parser','storage','payment','capacity','retrieval']::text[]"
         },
         "service_health_runs_input_hash_check": {
           "name": "service_health_runs_input_hash_check",

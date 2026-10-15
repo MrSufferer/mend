@@ -64,7 +64,9 @@ return {async fetch(request:Request){
    const body=await request.json();if(request.method!=='POST'||!body||Object.keys(body).join()!=='runId'||!uuid(body.runId))return Response.json({error:'invalid_request'},{status:400});id=body.runId;
    await database().execute(sql`SELECT public.mend_health_registrar(${id}::uuid,'claim')`);
    const rpc=healthRpc();
-   await Promise.all([paymentAvailable(rpc),reconcileCapacity(rpc as unknown as CapacityReader)]);
+   await paymentAvailable(rpc);
+   await database().execute(sql`SELECT public.mend_health_registrar(${id}::uuid,'payment_passed')`);
+   await reconcileCapacity(rpc as unknown as CapacityReader);
    await database().execute(sql`SELECT public.mend_health_registrar(${id}::uuid,'complete')`);
    return Response.json({status:'checked'});
   }catch{if(id)try{await database().execute(sql`SELECT public.mend_health_registrar(${id}::uuid,'failed')`);}catch{/* Expired work cannot be completed. */}return Response.json({error:'payment_or_capacity_unavailable'},{status:503});}

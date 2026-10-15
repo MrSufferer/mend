@@ -1,9 +1,9 @@
+import {storageClient as client,maxObjectBytes} from './storage-transport';
 import {createHash} from 'node:crypto';
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import {  PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ApiError } from './http';
-export const maxUploadBytes = 10 * 1024 * 1024;
-function client() {return new S3Client({endpoint:process.env.AWS_ENDPOINT_URL_S3,region:process.env.AWS_REGION,forcePathStyle:true,requestChecksumCalculation:'WHEN_REQUIRED',responseChecksumValidation:'WHEN_REQUIRED'});}
+export const maxUploadBytes = maxObjectBytes;
 function bucket() {if (!process.env.UPLOAD_BUCKET) throw new Error('UPLOAD_BUCKET is required'); return process.env.UPLOAD_BUCKET;}
 export async function presignUpload(key:string,size:number,expiresIn:number) {
   const url = await getSignedUrl(client(), new PutObjectCommand({Bucket:bucket(),Key:key,ContentLength:size,ContentType:'application/pdf'}),{expiresIn});

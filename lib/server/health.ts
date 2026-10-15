@@ -7,7 +7,7 @@ import {ApiError,jsonBody} from './http';
 import {validatePdf} from './pdf';
 import {saveUpload,readUpload,verifiedResult} from './storage';
 type Authority=Awaited<ReturnType<typeof operatorAuthority>>;
-type Run={current:boolean;id:string;nonce:string;status:string;purpose:string;source_id:string|null;started_at:string;deadline:string;expires_at:string;finished_at:string|null;diagnostic:string|null;output_hash:string|null;output_size:number|null;validation_at:string|null;parser_at:string|null;storage_at:string|null;payment_at:string|null;capacity_at:string|null;retrieval_at:string|null};
+type Run={conversion_claimed:boolean;registrar_claimed:boolean;failed_components:string[];current:boolean;id:string;nonce:string;status:string;purpose:string;source_id:string|null;started_at:string;deadline:string;expires_at:string;finished_at:string|null;diagnostic:string|null;output_hash:string|null;output_size:number|null;validation_at:string|null;parser_at:string|null;storage_at:string|null;payment_at:string|null;capacity_at:string|null;retrieval_at:string|null};
 const hash=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
 const id=z.string().uuid();
 async function work(runId:string,authority:Authority,action='read',sha:string|null=null,size:number|null=null){
@@ -18,7 +18,7 @@ async function work(runId:string,authority:Authority,action='read',sha:string|nu
 function projection(h:Run){
  const stale=Date.now()-new Date(h.started_at).getTime()>120000||(h.status==='passed'&&!h.current);
  const unknown=h.status==='running'&&new Date(h.deadline).getTime()<=Date.now();
- return {id:h.id,status:stale?'stale':unknown?'unknown':h.status,purpose:h.purpose,sourceId:h.source_id,startedAt:h.started_at,finishedAt:h.finished_at,expiresAt:h.expires_at,diagnostic:h.diagnostic,components:Object.fromEntries(['validation','parser','storage','payment','capacity','retrieval'].map(name=>{const at=h[`${name}_at` as keyof Run];return [name,{status:at?'passed':h.status==='failed'?'failed':unknown||h.status==='unknown'?'unknown':'pending',at}];}))};
+ return {id:h.id,status:stale?'stale':unknown?'unknown':h.status,purpose:h.purpose,sourceId:h.source_id,startedAt:h.started_at,finishedAt:h.finished_at,expiresAt:h.expires_at,diagnostic:h.diagnostic,components:Object.fromEntries(['validation','parser','storage','payment','capacity','retrieval'].map(name=>{const at=h[`${name}_at` as keyof Run];const attempted=({validation:true,parser:h.conversion_claimed,storage:!!h.parser_at,payment:h.registrar_claimed,capacity:!!h.payment_at,retrieval:false} as Record<string,boolean>)[name];return [name,{status:h.failed_components.includes(name)?'failed':at?'passed':h.status==='failed'||unknown||h.status==='unknown'?(attempted?'unknown':'not_run'):'pending',passedAt:at}];}))};
 }
 // Byte offsets are calculated over ASCII, including the unique fixed-length nonce.
 function document(nonce:string){
@@ -38,22 +38,29 @@ export async function startHealth(request:Request,sourceId?:string){
  const runId=randomUUID(),nonce=randomBytes(16).toString('hex');
  try{await database().execute(sql`SELECT public.mend_health_begin(${runId}::uuid,${nonce},${authority.sessionHash},${authority.wallet},${sourceId??null}::uuid)`);}catch{throw new ApiError(409,'health_unavailable','The health check is stale or another check is running. Retry with a current session.');}
  // One bounded invocation. A timed out remote peer cannot later turn unknown work into a pass.
- const signal=AbortSignal.timeout(18000);
+ const signal=AbortSignal.timeout(18000);let phase='validation';
  try{
   const bytes=document(nonce);await validatePdf(bytes);
   await work(runId,authority,'validated',hash(bytes),bytes.length);
-  await saveUpload(`health/${runId}/input.pdf`,bytes,signal);
+  phase='storage';await saveUpload(`health/${runId}/input.pdf`,bytes,signal);
   const stored=await readUpload(`health/${runId}/input.pdf`,signal);if(hash(stored.bytes)!==hash(bytes)||stored.bytes.length!==bytes.length)throw Error('health_input_invalid');
-  await Promise.all([remote('CONVERSION',runId,signal),remote('REGISTRAR',runId,signal)]);
- }catch{await work(runId,authority,'unknown');}
+  phase='peers';const peers=await Promise.allSettled([remote('CONVERSION',runId,signal),remote('REGISTRAR',runId,signal)]);
+  if(peers.some(peer=>peer.status==='rejected'))throw Error('health_peer_unavailable');
+ }catch{await work(runId,authority,phase==='peers'?'unknown':`${phase}_failed`);}
  return projection(await work(runId,authority));
 }
 export async function healthStatus(runId:string){return projection(await work(runId,await operatorAuthority()));}
 export async function healthResult(runId:string){
  const authority=await operatorAuthority(),h=await work(runId,authority);
  if(!h.output_hash||!h.output_size||!h.storage_at)throw new ApiError(409,'health_output_pending','Verified private health output is not available.');
- const bytes=await verifiedResult({key:`health/${runId}/result.txt`,sha256:h.output_hash,size:h.output_size,expiresAt:h.expires_at},AbortSignal.timeout(5000));
- if(!bytes.toString('utf8').includes(`Mend health ${h.nonce}`))throw new ApiError(409,'health_output_invalid','The health result could not be verified.');
+ let bytes:Buffer;
+ try{
+  bytes=await verifiedResult({key:`health/${runId}/result.txt`,sha256:h.output_hash,size:h.output_size,expiresAt:h.expires_at},AbortSignal.timeout(5000));
+  if(!bytes.toString('utf8').includes(`Mend health ${h.nonce}`))throw new ApiError(409,'health_output_invalid','The health result could not be verified.');
+ }catch(error){
+  try{await work(runId,authority,'retrieval_failed');}catch{/* Expired or revoked evidence cannot accept further outcomes. */}
+  throw error;
+ }
  const current=await operatorAuthority();if(current.sessionHash!==authority.sessionHash)throw new ApiError(401,'session_expired','Sign in again.');
  try{await work(runId,current,'retrieved',hash(bytes),bytes.length);}catch{throw new ApiError(409,'health_stale','Health evidence changed or expired. Run another check.');}
  return new Response(new Uint8Array(bytes),{headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'private, no-store'}});

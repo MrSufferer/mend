@@ -8,8 +8,10 @@ CREATE TABLE public.service_health_runs (
  expires_at timestamptz NOT NULL DEFAULT clock_timestamp()+interval '15 minutes', finished_at timestamptz, resumed_at timestamptz,
  status text NOT NULL DEFAULT 'running' CHECK(status IN ('running','passed','failed','unknown')),
  validation_at timestamptz, parser_at timestamptz, storage_at timestamptz, payment_at timestamptz, capacity_at timestamptz, retrieval_at timestamptz,
+ failed_components text[] NOT NULL DEFAULT '{}'::text[],
  diagnostic text, input_hash text, input_size integer, output_hash text, output_size integer, output_created_at timestamptz,
  conversion_claimed boolean NOT NULL DEFAULT false, registrar_claimed boolean NOT NULL DEFAULT false, cleaned_at timestamptz,
+ CHECK(failed_components <@ ARRAY['validation','parser','storage','payment','capacity','retrieval']::text[]),
  CHECK(input_hash IS NULL OR input_hash ~ '^[a-f0-9]{64}$'), CHECK(output_hash IS NULL OR output_hash ~ '^[a-f0-9]{64}$'),
  CHECK(input_size IS NULL OR input_size BETWEEN 1 AND 10485760),CHECK(output_size IS NULL OR output_size BETWEEN 1 AND 10485760)
 );
@@ -63,6 +65,10 @@ BEGIN
   IF h.storage_at IS NULL OR h.output_hash IS NULL OR h.output_size IS NULL OR h.output_hash IS DISTINCT FROM p_hash OR h.output_size IS DISTINCT FROM p_size THEN RAISE EXCEPTION 'health_output_invalid'; END IF;
   IF h.validation_at IS NULL OR h.parser_at IS NULL OR h.payment_at IS NULL OR h.capacity_at IS NULL OR h.started_at<clock_timestamp()-interval '120 seconds' OR h.generation<>s.generation OR h.failure_generation<>s.failure_generation OR h.paused_at IS DISTINCT FROM s.paused_at OR h.capacity_version<>c.version OR c.observed_version IS DISTINCT FROM c.version OR c.observed_at IS NULL OR c.observed_at<clock_timestamp()-interval '120 seconds' OR c.observation->>'status' IS DISTINCT FROM 'sufficient' THEN RAISE EXCEPTION 'health_stale'; END IF;
   UPDATE public.service_health_runs SET retrieval_at=COALESCE(retrieval_at,clock_timestamp()),finished_at=COALESCE(finished_at,clock_timestamp()),status='passed' WHERE id=p_id;
+ ELSIF p_action IN ('validation_failed','storage_failed','retrieval_failed') THEN
+  -- A later actual download failure invalidates a pass beyond the execution budget.
+  IF h.status NOT IN ('running','failed','passed') OR (p_action<>'retrieval_failed' AND (h.status='passed' OR h.deadline<=clock_timestamp())) THEN RAISE EXCEPTION 'health_expired'; END IF;
+  UPDATE public.service_health_runs SET status='failed',failed_components=array_append(failed_components,split_part(p_action,'_',1)),diagnostic='document_failed',finished_at=clock_timestamp() WHERE id=p_id;
  ELSIF p_action='unknown' THEN
   UPDATE public.service_health_runs SET status='unknown',diagnostic='health_incomplete',finished_at=clock_timestamp() WHERE id=p_id AND status='running';
  ELSIF p_action<>'read' THEN RAISE EXCEPTION 'invalid_health_action'; END IF;
@@ -78,14 +84,19 @@ CREATE FUNCTION public.mend_health_conversion(p_id uuid,p_action text,p_hash tex
 DECLARE h public.service_health_runs;
 BEGIN
  h=public.mend_health_assert(p_id);
- IF h.status<>'running' OR h.deadline<=clock_timestamp() THEN RAISE EXCEPTION 'health_expired'; END IF;
+ IF h.status NOT IN ('running','failed') OR h.deadline<=clock_timestamp() THEN RAISE EXCEPTION 'health_expired'; END IF;
  IF p_action='claim' THEN
   IF h.validation_at IS NULL OR h.input_hash IS NULL OR h.input_size IS NULL OR h.conversion_claimed THEN RAISE EXCEPTION 'health_not_ready'; END IF;
   UPDATE public.service_health_runs SET conversion_claimed=true WHERE id=p_id;
+ ELSIF p_action='parsed' THEN
+  IF NOT h.conversion_claimed OR h.parser_at IS NOT NULL THEN RAISE EXCEPTION 'health_not_ready'; END IF;
+  UPDATE public.service_health_runs SET parser_at=clock_timestamp() WHERE id=p_id;
  ELSIF p_action='complete' THEN
-  IF NOT h.conversion_claimed OR h.parser_at IS NOT NULL OR p_hash IS NULL OR p_size IS NULL OR p_created IS NULL OR p_created<h.started_at-interval '2 seconds' OR p_created>clock_timestamp()+interval '15 seconds' THEN RAISE EXCEPTION 'health_output_invalid'; END IF;
-  UPDATE public.service_health_runs SET parser_at=clock_timestamp(),storage_at=clock_timestamp(),output_hash=p_hash,output_size=p_size,output_created_at=p_created WHERE id=p_id;
- ELSIF p_action='failed' THEN UPDATE public.service_health_runs SET status='failed',diagnostic='document_failed',finished_at=clock_timestamp() WHERE id=p_id;
+  IF NOT h.conversion_claimed OR h.parser_at IS NULL OR h.storage_at IS NOT NULL OR p_hash IS NULL OR p_size IS NULL OR p_created IS NULL OR p_created<h.started_at-interval '2 seconds' OR p_created>clock_timestamp()+interval '15 seconds' THEN RAISE EXCEPTION 'health_output_invalid'; END IF;
+  UPDATE public.service_health_runs SET storage_at=clock_timestamp(),output_hash=p_hash,output_size=p_size,output_created_at=p_created WHERE id=p_id;
+ ELSIF p_action IN ('parser_failed','storage_failed') THEN
+  IF NOT h.conversion_claimed THEN RAISE EXCEPTION 'health_not_ready'; END IF;
+  UPDATE public.service_health_runs SET status='failed',failed_components=array_append(failed_components,split_part(p_action,'_',1)),diagnostic='document_failed',finished_at=clock_timestamp() WHERE id=p_id;
  ELSE RAISE EXCEPTION 'invalid_health_action'; END IF;
  RETURN jsonb_build_object('id',h.id,'nonce',h.nonce,'input_hash',h.input_hash,'input_size',h.input_size,'started_at',h.started_at,'deadline',h.deadline,'expires_at',h.expires_at);
 END; $$;
@@ -96,15 +107,20 @@ CREATE FUNCTION public.mend_health_registrar(p_id uuid,p_action text) RETURNS bo
 DECLARE h public.service_health_runs;c public.refund_capacity;
 BEGIN
  h=public.mend_health_assert(p_id);
- IF h.status<>'running' OR h.deadline<=clock_timestamp() THEN RAISE EXCEPTION 'health_expired'; END IF;
+ IF h.status NOT IN ('running','failed') OR h.deadline<=clock_timestamp() THEN RAISE EXCEPTION 'health_expired'; END IF;
  IF p_action='claim' THEN
   IF h.registrar_claimed THEN RAISE EXCEPTION 'health_not_ready'; END IF;
   UPDATE public.service_health_runs SET registrar_claimed=true WHERE id=p_id;
+ ELSIF p_action='payment_passed' THEN
+  IF NOT h.registrar_claimed OR h.payment_at IS NOT NULL THEN RAISE EXCEPTION 'health_not_ready'; END IF;
+  UPDATE public.service_health_runs SET payment_at=clock_timestamp() WHERE id=p_id;
  ELSIF p_action='complete' THEN
   SELECT * INTO c FROM public.refund_capacity WHERE id='merchant';
-  IF NOT h.registrar_claimed OR h.payment_at IS NOT NULL OR h.capacity_version<>c.version OR c.observed_version IS DISTINCT FROM c.version OR c.observed_at IS NULL OR c.observed_at<h.started_at OR c.observation->>'status' IS DISTINCT FROM 'sufficient' THEN RAISE EXCEPTION 'capacity_unavailable'; END IF;
-  UPDATE public.service_health_runs SET payment_at=clock_timestamp(),capacity_at=c.observed_at WHERE id=p_id;
- ELSIF p_action='failed' THEN UPDATE public.service_health_runs SET status='failed',diagnostic='payment_or_capacity_failed',finished_at=clock_timestamp() WHERE id=p_id;
+  IF NOT h.registrar_claimed OR h.payment_at IS NULL OR h.capacity_at IS NOT NULL OR h.capacity_version<>c.version OR c.observed_version IS DISTINCT FROM c.version OR c.observed_at IS NULL OR c.observed_at<h.started_at OR c.observation->>'status' IS DISTINCT FROM 'sufficient' THEN RAISE EXCEPTION 'capacity_unavailable'; END IF;
+  UPDATE public.service_health_runs SET capacity_at=c.observed_at WHERE id=p_id;
+ ELSIF p_action='failed' THEN
+  IF NOT h.registrar_claimed THEN RAISE EXCEPTION 'health_not_ready'; END IF;
+  UPDATE public.service_health_runs SET status='failed',failed_components=array_append(failed_components,CASE WHEN h.payment_at IS NULL THEN 'payment' ELSE 'capacity' END),diagnostic='payment_or_capacity_failed',finished_at=clock_timestamp() WHERE id=p_id;
  ELSE RAISE EXCEPTION 'invalid_health_action'; END IF;
  RETURN true;
 END; $$;

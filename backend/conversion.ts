@@ -1,25 +1,19 @@
+import {storageClient as s3,readPrivateObject} from '../lib/server/storage-transport';
 import './database-timeout';
 import type {Worker} from 'node:worker_threads';
 import {runPdfWorker} from './pdf-worker';
 import {healthConversion,healthCleanup,cleanupHealth} from './health-conversion';
 import {randomUUID,createHash,timingSafeEqual} from 'node:crypto';
 import {and,desc,eq,isNull,sql} from 'drizzle-orm';
-import {S3Client,GetObjectCommand,PutObjectCommand} from '@aws-sdk/client-s3';
+import {PutObjectCommand} from '@aws-sdk/client-s3';
 import {database} from '../lib/server/db';
 import {orders,executionAttempts,reconciliationSweeps,agentInvocations,type Order} from '../lib/server/schema';
 const hash=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
-const s3=()=>new S3Client({endpoint:process.env.AWS_ENDPOINT_URL_S3,region:process.env.AWS_REGION,forcePathStyle:true,requestChecksumCalculation:'WHEN_REQUIRED',responseChecksumValidation:'WHEN_REQUIRED'});
 const active=new Map<string,{abort:AbortController;worker?:Worker;stopReason?:string;done:Promise<void>}>();
 let shuttingDown=false;
 function stop(id:string,reason:string) {const a=active.get(id);if(a){a.stopReason??=reason;a.abort.abort();void a.worker?.terminate();}}
 process.on('SIGINT',()=>{shuttingDown=true;for(const id of active.keys())stop(id,'host_shutdown');void Promise.allSettled([...active.values()].map(a=>a.done)).then(()=>process.exit(0));});
-async function read(bucket:string,key:string,abort?:AbortSignal) {
- const response=await s3().send(new GetObjectCommand({Bucket:bucket,Key:key}),{abortSignal:abort??AbortSignal.timeout(8000)});
- if(!response.Body||!response.ContentLength||response.ContentLength>10*1024*1024)throw new Error('object_invalid');
- const chunks:Uint8Array[]=[];let size=0;
- for await(const chunk of response.Body as AsyncIterable<Uint8Array>){size+=chunk.length;if(size>10*1024*1024)throw new Error('object_limit');chunks.push(chunk);}
- return {bytes:Buffer.concat(chunks),createdAt:response.LastModified};
-}
+const read=(bucket:string,key:string,signal?:AbortSignal)=>readPrivateObject(bucket,key,signal??AbortSignal.timeout(8000));
 async function parser(bytes:Uint8Array,deadline:number,attemptId:string,holdMs:number) {
  return runPdfWorker(bytes,deadline,active.get(attemptId)!,reason=>stop(attemptId,reason),holdMs);
 }

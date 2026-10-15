@@ -22,8 +22,10 @@ export async function signIn(request:APIRequestContext,key='11'){
 }
 export async function healthFixture(){
  expect((await owner()`SELECT current_database() AS name`)[0].name).toBe('mend_ticket14_health');
+ // Refuse an existing listener: each test invocation must use its own controlled providers.
+ await new Promise<void>((resolve,reject)=>{const probe=createServer();probe.once('error',reject);probe.listen(3042,'127.0.0.1',()=>probe.close(error=>error?reject(error):resolve()));});
  const objects=new Map<string,{bytes:Buffer;at:Date}>(),children:ChildProcess[]=[],servers:Server[]=[];
- const settings={support:true,chain:5042002,blockAge:0,balance:BigInt(8000000),allowance:BigInt(10000000),corruptOutput:false,missingOutput:false,parserHoldMs:0,rpcDelay:0};
+ const settings={support:true,chain:5042002,blockAge:0,balance:BigInt(8000000),allowance:BigInt(10000000),corruptOutput:false,missingOutput:false,oversizedOutput:false,parserHoldMs:0,rpcDelay:0};
  const effects={verify:0,settle:0,inputWrites:0,outputWrites:0,reads:0};
  async function listen(server:Server){servers.push(server);await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));return `http://127.0.0.1:${(server.address() as {port:number}).port}`;}
  const storage=await listen(createServer(async(req,res)=>{
@@ -31,7 +33,7 @@ export async function healthFixture(){
   if(req.method==='PUT'){const chunks:Buffer[]=[];for await(const c of req)chunks.push(c);const bytes=Buffer.concat(chunks);objects.set(key,{bytes,at:new Date()});if(key.endsWith('.pdf'))effects.inputWrites++;else effects.outputWrites++;res.end();return;}
   if(req.method==='DELETE'){objects.delete(key);res.statusCode=204;res.end();return;}
   const value=objects.get(key);if(!value||(settings.missingOutput&&key.endsWith('.txt'))){res.statusCode=404;res.end('<Error><Code>NoSuchKey</Code></Error>');return;}
-  const bytes=settings.corruptOutput&&key.endsWith('.txt')?Buffer.from('Wrong private output'):value.bytes;
+  const bytes=settings.oversizedOutput&&key.endsWith('.txt')?Buffer.alloc(10485761):settings.corruptOutput&&key.endsWith('.txt')?Buffer.from('Wrong private output'):value.bytes;
   effects.reads++;res.setHeader('Content-Length',bytes.length);res.setHeader('Last-Modified',value.at.toUTCString());res.setHeader('ETag','"controlled"');res.end(req.method==='HEAD'?undefined:bytes);
  }));
  const facilitator=await listen(createServer(async(req,res)=>{

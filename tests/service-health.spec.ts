@@ -11,7 +11,7 @@ test('operator proves real PDF execution and authenticated private retrieval; he
  expect(response.status()).toBe(200);
  const health=await response.json();expect(health.status).toBe('running');expect(health.components.validation.status).toBe('passed');expect(health.components.parser.status).toBe('passed');expect(health.components.storage.status).toBe('passed');expect(health.components.payment.status).toBe('passed');expect(health.components.capacity.status).toBe('passed');expect(health.components.retrieval.status).toBe('pending');
  const result=await request.get(`/api/operator/service/health/${health.id}/result`);expect(result.status()).toBe(200);expect(result.headers()['cache-control']).toContain('private');expect(await result.text()).toMatch(/Mend health [a-f0-9]{32}/);
- const current=await(await request.get(`/api/operator/service/health/${health.id}`)).json();expect(current.status).toBe('passed');expect(current.components.retrieval.at).toBeTruthy();
+ const current=await(await request.get(`/api/operator/service/health/${health.id}`)).json();expect(current.status).toBe('passed');expect(current.components.retrieval.passedAt).toBeTruthy();
  expect((await(await request.get('/api/operator/service')).json()).availability.paused).toBe(true);
  expect((await owner()`SELECT count(*)::int AS n FROM orders`)[0].n).toBe(before);expect(fixture.effects).toMatchObject({verify:0,settle:0,inputWrites:1,outputWrites:1});
 });
@@ -42,16 +42,42 @@ test('a passed badge immediately becomes stale when pause, failure or backlog ge
 });
 test('unhealthy document storage, unsupported payment and noncanonical RPC never pass or resume',async({request})=>{
  await signIn(request);
- for(const setting of [{corruptOutput:true},{missingOutput:true},{support:false},{chain:1},{blockAge:121}]){
+ for(const setting of [{corruptOutput:true},{missingOutput:true},{oversizedOutput:true},{support:false},{chain:1},{blockAge:121}]){
   Object.assign(fixture.settings,setting);
   try{
    const response=await request.post('/api/operator/service/health',{headers:{Origin:origin},data:{}});expect(response.status()).toBe(200);const h=await response.json();expect(['failed','unknown']).toContain(h.status);
+   expect(h.components.validation.status).toBe('passed');expect(h.components.retrieval.status).toBe('not_run');
+   if('corruptOutput' in setting||'missingOutput' in setting||'oversizedOutput' in setting){expect(h.components.parser.status).toBe('passed');expect(h.components.parser.passedAt).toBeTruthy();expect(h.components.storage.status).toBe('failed');expect(h.components.payment.status).toBe('passed');expect(h.components.capacity.status).toBe('passed');}
+   else{expect(h.components.payment.status).toBe('failed');expect(h.components.capacity.status).toBe('not_run');expect(h.components.parser.status).toBe('passed');expect(h.components.storage.status).toBe('passed');}
+   const reread=await(await request.get(`/api/operator/service/health/${h.id}`)).json();expect(reread.components).toEqual(h.components);
    expect((await request.get(`/api/operator/service/health/${h.id}/result`)).status()).not.toBe(200);
    expect((await request.post('/api/operator/service/resume',{headers:{Origin:origin},data:{healthId:h.id}})).status()).toBe(409);
    expect((await(await request.get('/api/operator/service')).json()).availability.paused).toBe(true);
-  }finally{Object.assign(fixture.settings,{corruptOutput:false,missingOutput:false,support:true,chain:5042002,blockAge:0});}
+  }finally{Object.assign(fixture.settings,{corruptOutput:false,missingOutput:false,oversizedOutput:false,support:true,chain:5042002,blockAge:0});}
  }
  expect(fixture.effects.verify+fixture.effects.settle).toBe(0);
+});
+test('failed authenticated retrieval keeps earlier passes and records only the actual retrieval failure',async({request})=>{
+ await signIn(request);const response=await request.post('/api/operator/service/health',{headers:{Origin:origin},data:{}}),health=await response.json();expect(health.status).toBe('running');
+ fixture.settings.corruptOutput=true;
+ try{
+  expect((await request.get(`/api/operator/service/health/${health.id}/result`)).status()).toBe(409);
+  const current=await(await request.get(`/api/operator/service/health/${health.id}`)).json();expect(current.status).toBe('failed');expect(current.components.retrieval).toEqual({status:'failed',passedAt:null});
+  for(const component of ['validation','parser','storage','payment','capacity'])expect(current.components[component]).toEqual(health.components[component]);
+  expect((await request.post('/api/operator/service/resume',{headers:{Origin:origin},data:{healthId:health.id}})).status()).toBe(409);
+ }finally{fixture.settings.corruptOutput=false;}
+});
+test('a later corrupt authenticated retrieval invalidates passed evidence and retains its last successful timestamp',async({request})=>{
+ await signIn(request);const health=await passed(request);
+ // Recovery evidence remains current for two minutes after the shorter execution budget.
+ await owner().query(`UPDATE service_health_runs SET deadline=clock_timestamp()-interval '1 second' WHERE id=$1`,[health.id]);
+ fixture.settings.corruptOutput=true;
+ try{
+  expect((await request.get(`/api/operator/service/health/${health.id}/result`)).status()).toBe(409);
+  const current=await(await request.get(`/api/operator/service/health/${health.id}`)).json();expect(current.status).toBe('failed');expect(current.components.retrieval).toEqual({status:'failed',passedAt:health.components.retrieval.passedAt});
+  for(const component of ['validation','parser','storage','payment','capacity'])expect(current.components[component]).toEqual(health.components[component]);
+  expect((await request.post('/api/operator/service/resume',{headers:{Origin:origin},data:{healthId:health.id}})).status()).toBe(409);
+ }finally{fixture.settings.corruptOutput=false;}
 });
 test('operator session, strict bodies, origin and distinct peer credentials are enforced at actual HTTP boundaries',async({request,playwright})=>{
  const anonymous=await playwright.request.newContext({baseURL:origin});
@@ -92,6 +118,7 @@ test('canonical aggregate capacity rejects a whole backlog even when each refund
   for(const [balance,allowance] of [[1000000,10000000],[8000000,1000000]]){
    fixture.settings.balance=BigInt(balance);fixture.settings.allowance=BigInt(allowance);
    const h=await(await request.post('/api/operator/service/health',{headers:{Origin:origin},data:{}})).json();expect(h.status).toBe('failed');
+   expect(h.components.payment.status).toBe('passed');expect(h.components.payment.passedAt).toBeTruthy();expect(h.components.capacity.status).toBe('failed');expect(h.components.retrieval.status).toBe('not_run');expect(h.components.parser.status).toBe('passed');expect(h.components.storage.status).toBe('passed');
    const state=await(await request.get('/api/operator/service')).json();expect(state.capacity.status).toBe('deficit');expect(state.capacity.observation.debtAtomic).toBe('2000000');expect(state.availability.paused).toBe(true);
    expect((await request.post('/api/operator/service/resume',{headers:{Origin:origin},data:{healthId:h.id}})).status()).toBe(409);
   }
@@ -123,7 +150,8 @@ test('non-web SQL roles cannot forge health passes or resume; generic health and
 
 test('stalled RPC fails within the health budget and never leaves resumable work',async({request})=>{
  await signIn(request);fixture.settings.rpcDelay=15000;
- try{const start=Date.now(),response=await request.post('/api/operator/service/health',{headers:{Origin:origin},data:{}});expect(Date.now()-start).toBeLessThan(10000);expect(response.status()).toBe(200);const h=await response.json();expect(['failed','unknown']).toContain(h.status);expect((await request.post('/api/operator/service/resume',{headers:{Origin:origin},data:{healthId:h.id}})).status()).toBe(409);}finally{fixture.settings.rpcDelay=0;}
+ try{const start=Date.now(),response=await request.post('/api/operator/service/health',{headers:{Origin:origin},data:{}});expect(Date.now()-start).toBeLessThan(10000);expect(response.status()).toBe(200);const h=await response.json();expect(['failed','unknown']).toContain(h.status);
+   expect(h.components.payment.status).toBe('failed');expect(h.components.capacity.status).toBe('not_run');expect(h.components.parser.status).toBe('passed');expect(h.components.retrieval.status).toBe('not_run');expect((await request.post('/api/operator/service/resume',{headers:{Origin:origin},data:{healthId:h.id}})).status()).toBe(409);}finally{fixture.settings.rpcDelay=0;}
 });
 
 test('operator completes real health and deliberate resume in the browser with responsive private evidence',async({page})=>{
@@ -135,6 +163,11 @@ test('operator completes real health and deliberate resume in the browser with r
  await expect(section.getByText('Authenticated result retrieval',{exact:true})).toBeVisible();
  for(const width of [375,768,1280]){await page.setViewportSize({width,height:900});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);await page.screenshot({path:`/private/tmp/mend-recovery-context/health14-${width}.png`,fullPage:true});}
  const writes=fixture.effects.outputWrites;const resume=section.getByRole('button',{name:'Resume new purchases',exact:true});await resume.focus();await page.keyboard.press('Space');await expect(page.getByText('Fresh checks passed. New purchases resumed.',{exact:true})).toBeVisible();expect(fixture.effects.outputWrites).toBe(writes+1);
+ for(const time of await section.locator('time').all())await expect(time).toHaveClass('mono');
+ fixture.settings.corruptOutput=true;
+ try{await section.getByRole('button',{name:'Run another health check',exact:true}).click();await expect(section.getByText('Health: Failed',{exact:true})).toBeVisible();
+  await expect(section.locator('li').filter({hasText:'Parser execution'})).toContainText('Passed');await expect(section.locator('li').filter({hasText:'Private storage write and readback'})).toContainText('Failed');await expect(section.locator('li').filter({hasText:'Authenticated result retrieval'})).toContainText('Not run');
+ }finally{fixture.settings.corruptOutput=false;}
  await page.evaluate(()=>{(window as unknown as {__wallet:{switch:(n:number)=>void}}).__wallet.switch(1);});await expect(section).not.toBeVisible();expect(fixture.effects.verify+fixture.effects.settle).toBe(0);
 });
 
