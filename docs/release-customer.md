@@ -1,6 +1,6 @@
 # Purchase and retrieve a document
 
-Use a release origin whose exact provider deployment and anonymous accessibility are recorded in the [release status](release.md#acceptance-status). No anonymously usable final release origin is asserted by this guide yet. Historical protected previews require provider access and do not satisfy that gate.
+The [public preview origin](https://mend-3hvszzylk-gadillacers-projects.vercel.app) and its exact source96 deployment passed anonymous and authenticated checks on2026-10-15; see the [acceptance observations](release-acceptance-2026-10-15.md). Independent release QA remains outstanding in#18. Historical protected previews remain separately dated evidence.
 
 Install the pinned dependencies with `npm ci`. Prepare a small text-based PDF: maximum 10 MiB and 50 pages; encrypted PDFs (including empty-password encryption), image-only PDFs and mixed scanned/text documents are rejected. Blank pages within a text document are allowed. Browser checkout is outside this release's scope.
 
