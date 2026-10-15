@@ -12,3 +12,12 @@ export async function readPrivateObject(bucket:string,key:string,signal:AbortSig
  }catch(error){body?.destroy?.();throw error;}
  return {bytes:Buffer.concat(chunks),createdAt:response.LastModified};
 }
+
+/** DELETE success is not absence evidence. HEAD must independently return 404. */
+export async function deletePrivateObject(bucket:string,key:string){
+ const {DeleteObjectCommand,HeadObjectCommand}=await import('@aws-sdk/client-s3');
+ const client=storageClient(),signal=AbortSignal.timeout(4000);
+ await client.send(new DeleteObjectCommand({Bucket:bucket,Key:key}),{abortSignal:signal});
+ try{await client.send(new HeadObjectCommand({Bucket:bucket,Key:key}),{abortSignal:signal});return false;}
+ catch(error){if((error as {$metadata?:{httpStatusCode?:number}}).$metadata?.httpStatusCode===404)return true;throw error;}
+}

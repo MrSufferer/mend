@@ -33,7 +33,9 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   }
   // Copy validated bytes to a server-only key: an unexpired PUT URL cannot replace an accepted document.
   const uploadKey = `accepted/${id}.pdf`;
+  if(submission.expiresAt.getTime()<=Date.now())throw new ApiError(410,'submission_expired','Upload window expired.');
   await saveUpload(uploadKey,upload.bytes);
+  if(submission.expiresAt.getTime()<=Date.now()){const [accepted]=await db.select({id:orders.id}).from(orders).where(eq(orders.submissionId,id));if(!accepted)await deleteUpload(uploadKey);throw new ApiError(410,'submission_expired','Upload window expired.');}
   const uploadCreatedAt = upload.uploadedAt;
   const inserted = await db.insert(orders).values({id:randomUUID(),submissionId:id,capabilityHash:hash,status:'unpaid',
     terms:submission.terms,uploadKey,uploadCreatedAt,

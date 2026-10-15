@@ -1,5 +1,5 @@
 import {sql} from 'drizzle-orm';
-import { pgTable, text, boolean, integer,bigint,index, timestamp, jsonb, uuid, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import { pgTable, text, boolean, integer,bigint,index, timestamp, jsonb, uuid, uniqueIndex, primaryKey, check } from 'drizzle-orm/pg-core';
 import type {PaymentPayload,PaymentRequirements} from '@x402/core/types';
 import type { PurchasedTerms, RecoveryPolicy } from './terms';
 export const policies = pgTable('recovery_policies', {
@@ -155,3 +155,16 @@ export const serviceHealthRuns=pgTable('service_health_runs',{
  check('service_health_runs_input_size_check',sql`${t.inputSize} IS NULL OR ${t.inputSize} BETWEEN 1 AND 10485760`),check('service_health_runs_output_size_check',sql`${t.outputSize} IS NULL OR ${t.outputSize} BETWEEN 1 AND 10485760`),
  index('service_health_expiry').on(t.expiresAt).where(sql`${t.cleanedAt} IS NULL`),
 ]);
+
+
+// Content clocks and deletion evidence never replace order/payment authority.
+export const contentRetention=pgTable('content_retention',{
+ kind:text('kind').notNull(),objectKey:text('object_key').notNull(),createdAt:timestamp('created_at',{withTimezone:true}),expiresAt:timestamp('expires_at',{withTimezone:true}).notNull(),
+ tombstonedAt:timestamp('tombstoned_at',{withTimezone:true}),checkedAt:timestamp('checked_at',{withTimezone:true}),deletedAt:timestamp('deleted_at',{withTimezone:true}),claimedUntil:timestamp('claimed_until',{withTimezone:true}),failure:text('failure'),
+},t=>[primaryKey({columns:[t.kind,t.objectKey]}),index('content_retention_due').on(t.expiresAt,t.checkedAt),
+ check('content_retention_kind_check',sql`${t.kind} IN ('staging','upload','output')`),check('content_retention_failure_check',sql`${t.failure} IS NULL OR ${t.failure} IN ('storage_unknown','object_present')`),
+ check('content_retention_check',sql`(${t.kind}='staging' AND ${t.objectKey} ~ '^staging/[0-9a-f-]{36}\\.pdf$') OR (${t.kind}='upload' AND ${t.objectKey} ~ '^accepted/[0-9a-f-]{36}\\.pdf$') OR (${t.kind}='output' AND ${t.objectKey} ~ '^results/[0-9a-f-]{36}/[0-9a-f-]{36}\\.txt$')`),
+]);
+export const postexpiryOutputChecks=pgTable('postexpiry_output_checks',{
+ id:uuid('id').primaryKey().defaultRandom(),orderId:uuid('order_id').notNull().references(()=>orders.id),checkedAt:timestamp('checked_at',{withTimezone:true}).notNull().default(sql`clock_timestamp()`),identity:jsonb('identity').notNull(),
+});
