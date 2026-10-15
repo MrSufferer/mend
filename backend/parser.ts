@@ -1,4 +1,7 @@
 import {parentPort,workerData} from 'node:worker_threads';
+import {DOMMatrix} from '@napi-rs/canvas/geometry';
+// Bundle the real geometry implementation: standalone text extraction needs no native canvas.
+globalThis.DOMMatrix??=DOMMatrix;
 // The parser receives bytes only. Its environment excludes all service credentials.
 async function parse() {
  if(workerData.holdMs)await new Promise(resolve=>setTimeout(resolve,workerData.holdMs));

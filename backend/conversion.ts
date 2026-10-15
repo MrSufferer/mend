@@ -1,33 +1,21 @@
+import {storageClient as s3,readPrivateObject} from '../lib/server/storage-transport';
 import './database-timeout';
-import {Worker} from 'node:worker_threads';
+import type {Worker} from 'node:worker_threads';
+import {runPdfWorker} from './pdf-worker';
+import {healthConversion,healthCleanup,cleanupHealth} from './health-conversion';
 import {randomUUID,createHash,timingSafeEqual} from 'node:crypto';
 import {and,desc,eq,isNull,sql} from 'drizzle-orm';
-import {S3Client,GetObjectCommand,PutObjectCommand} from '@aws-sdk/client-s3';
+import {PutObjectCommand} from '@aws-sdk/client-s3';
 import {database} from '../lib/server/db';
 import {orders,executionAttempts,reconciliationSweeps,agentInvocations,type Order} from '../lib/server/schema';
 const hash=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
-const s3=()=>new S3Client({endpoint:process.env.AWS_ENDPOINT_URL_S3,region:process.env.AWS_REGION,forcePathStyle:true,requestChecksumCalculation:'WHEN_REQUIRED',responseChecksumValidation:'WHEN_REQUIRED'});
 const active=new Map<string,{abort:AbortController;worker?:Worker;stopReason?:string;done:Promise<void>}>();
 let shuttingDown=false;
 function stop(id:string,reason:string) {const a=active.get(id);if(a){a.stopReason??=reason;a.abort.abort();void a.worker?.terminate();}}
 process.on('SIGINT',()=>{shuttingDown=true;for(const id of active.keys())stop(id,'host_shutdown');void Promise.allSettled([...active.values()].map(a=>a.done)).then(()=>process.exit(0));});
-async function read(bucket:string,key:string,abort?:AbortSignal) {
- const response=await s3().send(new GetObjectCommand({Bucket:bucket,Key:key}),{abortSignal:abort??AbortSignal.timeout(8000)});
- if(!response.Body||!response.ContentLength||response.ContentLength>10*1024*1024)throw new Error('object_invalid');
- const chunks:Uint8Array[]=[];let size=0;
- for await(const chunk of response.Body as AsyncIterable<Uint8Array>){size+=chunk.length;if(size>10*1024*1024)throw new Error('object_limit');chunks.push(chunk);}
- return {bytes:Buffer.concat(chunks),createdAt:response.LastModified};
-}
+const read=(bucket:string,key:string,signal?:AbortSignal)=>readPrivateObject(bucket,key,signal??AbortSignal.timeout(8000));
 async function parser(bytes:Uint8Array,deadline:number,attemptId:string,holdMs:number) {
- const a=active.get(attemptId)!;
- const worker=new Worker(new URL('./parser.mjs',import.meta.url),{workerData:{bytes,holdMs},env:{},resourceLimits:{maxOldGenerationSizeMb:256}});a.worker=worker;
- let value:{text?:string,error?:string}|undefined,reason='completed';
- const exit=new Promise<number>(resolve=>worker.once('exit',resolve));
- worker.on('message',message=>{value=message;});worker.on('error',()=>{reason='parser_error';});
- const timer=setTimeout(()=>stop(attemptId,'deadline'),Math.max(1,deadline-Date.now()));
- if(a.stopReason)void worker.terminate();
- const code=await exit;clearTimeout(timer);a.worker=undefined;reason=a.stopReason??reason;
- return {code,reason,text:code===0&&reason==='completed'&&!value?.error?value?.text:undefined};
+ return runPdfWorker(bytes,deadline,active.get(attemptId)!,reason=>stop(attemptId,reason),holdMs);
 }
 function allowed(request:Request,secret='CONVERSION_SERVICE_SECRET') {
  const expected=Buffer.from(process.env[secret]||''),provided=Buffer.from(request.headers.get('Authorization')?.replace(/^Bearer /,'')||'');
@@ -226,6 +214,7 @@ async function scheduled(request:Request) {
  const body=await request.json(),header=request.headers.get('X-Neon-Trigger-Invocation-Id');
  if(!header||header!==body.invocation_id||body.version!==1||body.trigger?.type!=='schedule'||body.trigger.id!==process.env.RECONCILIATION_TRIGGER_ID||!Number.isFinite(Date.parse(body.data?.scheduled_at)))return Response.json({error:'invalid_trigger'},{status:403});
  const [claimed]=await database().insert(reconciliationSweeps).values({id:body.invocation_id,scheduledAt:new Date(body.data.scheduled_at)}).onConflictDoNothing().returning();if(!claimed)return Response.json({status:'already_observed'});
+ await cleanupHealth();
  const pending=await database().select({id:orders.id}).from(orders).where(sql`${orders.deliveredAt} IS NULL AND (${orders.paidAt} IS NOT NULL OR EXISTS (SELECT 1 FROM public.payment_attempts p WHERE p.order_id=${orders.id}))`).orderBy(sql`${orders.recoveryObservation}->>'checkedAt' ASC NULLS FIRST`,orders.createdAt).limit(3);
  const started=Date.now();let observed=0;
  for(const order of pending){if(Date.now()-started>=30000)break;try{await reconcile(order.id);}catch{await database().update(orders).set({recoveryObservation:{checkedAt:new Date().toISOString(),outcome:'infrastructure_unknown',execution:'unknown'}}).where(eq(orders.id,order.id));}observed++;}
@@ -234,6 +223,8 @@ async function scheduled(request:Request) {
 }
 export default {async fetch(request:Request) {
  const url=new URL(request.url),path=url.pathname.replace(/\/+/g,'/');
+ if(path==='/health/cleanup')return healthCleanup(request);
+ if(path==='/health/execute')return healthConversion(request);
  if(path==='/scheduled'&&request.method==='POST'){try{return await scheduled(request);}catch{return Response.json({error:'reconciliation_unavailable'},{status:503});}}
  if(path==='/registrar/check')return registrarCheck(request);
  if(path==='/operator'){try{return await operatorCommand(request);}catch{return Response.json({error:'operator_unavailable'},{status:503});}}

@@ -139,3 +139,19 @@ export const refundCapacity=pgTable('refund_capacity',{
  id:text('id').primaryKey().default('merchant'),version:bigint('version',{mode:'number'}).notNull().default(0),
  observedVersion:bigint('observed_version',{mode:'number'}),observation:jsonb('observation'),observedAt:timestamp('observed_at',{withTimezone:true}),
 },t=>[check('refund_capacity_merchant',sql`${t.id}='merchant'`)]);
+
+// Health evidence is separate from paid orders and is writable only through role-specific functions.
+export const serviceHealthRuns=pgTable('service_health_runs',{
+ id:uuid('id').primaryKey(),nonce:text('nonce').notNull(),actor:text('actor').notNull(),sessionHash:text('session_hash').notNull(),
+ purpose:text('purpose').notNull(),sourceId:uuid('source_id').references(():import('drizzle-orm/pg-core').AnyPgColumn=>serviceHealthRuns.id),
+ generation:integer('generation').notNull(),failureGeneration:integer('failure_generation').notNull(),pausedAt:timestamp('paused_at',{withTimezone:true}),capacityVersion:bigint('capacity_version',{mode:'number'}).notNull(),
+ startedAt:timestamp('started_at',{withTimezone:true}).notNull().default(sql`clock_timestamp()`),deadline:timestamp('deadline',{withTimezone:true}).notNull().default(sql`clock_timestamp()+interval '20 seconds'`),expiresAt:timestamp('expires_at',{withTimezone:true}).notNull().default(sql`clock_timestamp()+interval '15 minutes'`),finishedAt:timestamp('finished_at',{withTimezone:true}),resumedAt:timestamp('resumed_at',{withTimezone:true}),
+ status:text('status').notNull().default('running'),validationAt:timestamp('validation_at',{withTimezone:true}),parserAt:timestamp('parser_at',{withTimezone:true}),storageAt:timestamp('storage_at',{withTimezone:true}),paymentAt:timestamp('payment_at',{withTimezone:true}),capacityAt:timestamp('capacity_at',{withTimezone:true}),retrievalAt:timestamp('retrieval_at',{withTimezone:true}),
+ failedComponents:text('failed_components').array().notNull().default(sql`'{}'::text[]`),diagnostic:text('diagnostic'),inputHash:text('input_hash'),inputSize:integer('input_size'),outputHash:text('output_hash'),outputSize:integer('output_size'),outputCreatedAt:timestamp('output_created_at',{withTimezone:true}),conversionClaimed:boolean('conversion_claimed').notNull().default(false),registrarClaimed:boolean('registrar_claimed').notNull().default(false),cleanedAt:timestamp('cleaned_at',{withTimezone:true}),
+},t=>[
+ check('service_health_runs_nonce_check',sql`${t.nonce} ~ '^[a-f0-9]{32}$'`),check('service_health_runs_purpose_check',sql`${t.purpose} IN ('check','resume_recheck')`),check('service_health_runs_status_check',sql`${t.status} IN ('running','passed','failed','unknown')`),
+ check('service_health_runs_failed_components_check',sql`${t.failedComponents} <@ ARRAY['validation','parser','storage','payment','capacity','retrieval']::text[]`),
+ check('service_health_runs_input_hash_check',sql`${t.inputHash} IS NULL OR ${t.inputHash} ~ '^[a-f0-9]{64}$'`),check('service_health_runs_output_hash_check',sql`${t.outputHash} IS NULL OR ${t.outputHash} ~ '^[a-f0-9]{64}$'`),
+ check('service_health_runs_input_size_check',sql`${t.inputSize} IS NULL OR ${t.inputSize} BETWEEN 1 AND 10485760`),check('service_health_runs_output_size_check',sql`${t.outputSize} IS NULL OR ${t.outputSize} BETWEEN 1 AND 10485760`),
+ index('service_health_expiry').on(t.expiresAt).where(sql`${t.cleanedAt} IS NULL`),
+]);

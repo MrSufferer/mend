@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useState,type FormEvent} from 'react';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
+import ServiceHealth from './service-health';
 import {api,RequestError,useWallet} from '../lib/client/wallet';
 type Incident={id:string;actorKind:string;actor:string;reason:string;evidence:{attemptIds?:string[];orderIds?:string[]};createdAt:string};
 type Capacity={status:string;version?:string;observed_version?:string|null;observed_at?:string|null;observation?:{balanceAtomic:string;allowanceAtomic:string;debtAtomic:string;blockNumber:string;blockHash:string;chainTimestamp:string;allowanceResetAt:string;orders:number}|null};
@@ -27,6 +28,7 @@ export default function ServiceIncidents(){
    {!state.data?.availability.paused?<form onSubmit={pause}><label htmlFor="pause-reason">Processing incident reason</label><textarea id="pause-reason" name="reason" required minLength={3} maxLength={240} rows={2} autoComplete="off" aria-describedby="pause-help"/><p id="pause-help" className="caption">Record the processing issue. Keep document contents and credentials out of this private incident record.</p><button className="primary" disabled={busy} aria-busy={busy}>{busy?'Pausing purchases…':'Pause new purchases'}</button></form>:<p className="caption">A pause remains in effect until a verified recovery decision authorizes resuming purchases.</p>}
    {message?<p role="status" className="access-warning">{message}</p>:null}
    {state.data?<CapacityEvidence capacity={state.data.capacity}/>:null}
+   {state.data?<ServiceHealth key={`${session?.wallet}:${session?.expiresAt}`} paused={state.data.availability.paused}/>:null}
    <h3>Processing incidents</h3>{state.data?.incidents.length?<ol className="incident-history">{state.data.incidents.map(incident=><li key={incident.id}><p><strong>{incident.reason}</strong></p><p>{incident.actorKind==='deterministic'?(incident.actor==='refund_capacity'?'Refund capacity':'Failure threshold'):incident.actorKind==='agent'?'Recovery agent':'Operator'} · <time className="mono" dateTime={incident.createdAt}>{new Date(incident.createdAt).toLocaleString()}</time></p><details><summary>Inspect actor and affected orders</summary><p className="mono">Actor: {incident.actor}</p>{(incident.evidence.orderIds??[]).length?<ul>{(incident.evidence.orderIds??[]).map(id=><li className="mono" key={id}>{id}</li>)}</ul>:<p>No affected orders were recorded.</p>}<p className="caption">Confirmed failure attempts: {(incident.evidence.attemptIds??[]).length.toLocaleString('en-US')}</p></details></li>)}</ol>:<p>No processing incidents have been recorded.</p>}
   </>}
  </section>;
