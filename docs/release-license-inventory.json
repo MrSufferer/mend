@@ -4330,5 +4330,10 @@
         "bytes": 23108
       }
     ]
+  },
+  "noticeDocument": {
+    "path": "docs/release-notices.md",
+    "sha256": "b8fd16dbffe37016064fdab2622a79e7c19d6e28950187ae7f4a41f043198616",
+    "normalization": "UTF-8 LF newlines and stripped trailing whitespace; original upstream-source hashes are preserved separately."
   }
 }
