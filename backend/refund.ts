@@ -1,10 +1,10 @@
 import './database-timeout';
 import {sql} from 'drizzle-orm';
-import {database} from '../lib/server/db';
-import {reserve,token,reserveAbi,tokenAbi,type RefundBinding} from './refund-chain';
-import {refundRpc,submitRefund} from './refund-transactions';
-import {authorized,callRegistrar,uuid} from './refund-service-auth';
-export default {async fetch(request:Request){try{
+import {database as defaultDatabase} from '../lib/server/db';
+import {type RefundBinding} from './refund-chain';
+import {submitRefund} from './refund-transactions';
+import {authorized,callRegistrar,callCapacity,uuid} from './refund-service-auth';
+export function createRefundService(options:{database?:typeof defaultDatabase;registrar?:typeof callRegistrar;capacity?:typeof callCapacity;submit?:typeof submitRefund}={}){const database=options.database??defaultDatabase;return {async fetch(request:Request){try{
  const path=new URL(request.url).pathname.replace(/\/+/g,'/');
  if(request.method!=='POST'||!['/reconcile','/scheduled','/probe'].includes(path))return Response.json({error:'not_found'},{status:404});
  let sweep:{id:string;at:string}|undefined;
@@ -17,16 +17,17 @@ export default {async fetch(request:Request){try{
  let orderId:string|undefined;
  if(path==='/reconcile'){const body=await request.json();if(!body||Object.keys(body).some(key=>key!=='orderId')||body.orderId!==undefined&&!uuid(body.orderId))return Response.json({error:'invalid_request'},{status:400});orderId=body.orderId;}
  const selected=await database().execute(sweep?sql`SELECT public.mend_refund_sweep(${sweep.id}::text,${sweep.at}::timestamptz) AS order_id`:orderId?sql`SELECT order_id FROM public.mend_refund_queue() WHERE order_id=${orderId}::uuid`:sql`SELECT order_id FROM public.mend_refund_queue() LIMIT 1`);
- if(!selected.rows.length||!selected.rows[0].order_id)return Response.json({status:'idle'});orderId=selected.rows[0].order_id as string;
- const verified=await callRegistrar(orderId);
+ if(!selected.rows.length||!selected.rows[0].order_id){await (options.capacity??callCapacity)();return Response.json({status:'idle'});}orderId=selected.rows[0].order_id as string;
+ const verified=await (options.registrar??callRegistrar)(orderId);
  if(verified.status!=='registered')return Response.json(verified);
  const result=await database().execute(sql`SELECT * FROM public.refunds WHERE order_id=${orderId}::uuid`),r=result.rows[0] as RefundBinding;
- const rpc=refundRpc();
- const balance=await rpc.readContract({address:token,abi:tokenAbi,functionName:'balanceOf',authorizationList:undefined,args:[reserve]}) as bigint;
- const allowance=await rpc.readContract({address:reserve,abi:reserveAbi,functionName:'remainingDailyAllowance',authorizationList:undefined}) as bigint;
+ const capacity=await (options.capacity??callCapacity)();
+ if(!['sufficient','deficit'].includes(capacity.status))throw Error('capacity_unknown');
+ const balance=BigInt(capacity.balanceAtomic),allowance=BigInt(capacity.allowanceAtomic);
  if(balance<BigInt(r.amount_atomic)||allowance<BigInt(r.amount_atomic)){const blocker=balance<BigInt(r.amount_atomic)?'reserve_unfunded':'allowance_exhausted';await database().execute(sql`SELECT public.mend_refund_blocker(${orderId}::uuid,${blocker})`);return Response.json({status:'pending',reason:blocker});}
  await database().execute(sql`SELECT public.mend_refund_blocker(${orderId}::uuid,NULL)`);
- const submitted=await submitRefund(orderId,'refund',r);
- const settled=await callRegistrar(orderId);
+ const submitted=await (options.submit??submitRefund)(orderId,'refund',r);
+ const settled=await (options.registrar??callRegistrar)(orderId);
  return Response.json({status:settled.status==='refunded'?'refunded':'pending',...('reason' in submitted?{reason:submitted.reason}:{})});
- }catch{return Response.json({status:'pending',reason:'refund_reconciliation_unavailable'},{status:503});}}};
+ }catch{return Response.json({status:'pending',reason:'refund_reconciliation_unavailable'},{status:503});}}};}
+export default createRefundService();

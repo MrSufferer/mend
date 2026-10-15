@@ -1,5 +1,6 @@
 // Local management process only: secrets are multipart fields, never CLI arguments.
 import {build} from 'esbuild';
+import {agentRegistrarBinding} from './agent-registrar-binding.mjs';
 import {prepareDeployment} from './deployment-completion.mjs';
 import {readFile,writeFile,mkdir,rm} from 'node:fs/promises';
 import {parseEnv} from 'node:util';
@@ -18,7 +19,8 @@ let service;try{service=parseEnv(await readFile(servicePath,'utf8'));}catch{serv
 const db=await load('database-worker'),model=await load('model'),storage=await load('storage-default');
 const conversion=parseEnv(await readFile(process.env.AGENT_CONVERSION_SERVICE_ENV||'/private/tmp/mend-conversion6-service.env','utf8'));
 service.AGENT_CONVERSION_SECRET??=randomBytes(32).toString('hex');conversion.AGENT_CONVERSION_SECRET=service.AGENT_CONVERSION_SECRET;await writeFile(process.env.AGENT_CONVERSION_SERVICE_ENV||'/private/tmp/mend-conversion6-service.env',Object.entries(conversion).map(([k,v])=>`${k}=${v}`).join('\n')+'\n',{mode:0o600});
-const environment={DATABASE_URL:db.DATABASE_URL,DATABASE_URL_UNPOOLED:db.DATABASE_URL_UNPOOLED,OPENROUTER_API_KEY:model.OPENROUTER_API_KEY,RECOVERY_MODEL_ID:process.env.RECOVERY_MODEL_ID||model.AI_MODEL,AGENT_SERVICE_SECRET:service.AGENT_SERVICE_SECRET,AGENT_CONVERSION_URL:conversion.CONVERSION_FUNCTION_URL,AGENT_CONVERSION_SECRET:service.AGENT_CONVERSION_SECRET,AWS_ACCESS_KEY_ID:'disabled',AWS_SECRET_ACCESS_KEY:'disabled',AWS_SESSION_TOKEN:'disabled',AWS_ENDPOINT_URL_S3:storage.AWS_ENDPOINT_URL_S3,AWS_REGION:storage.AWS_REGION,OUTPUT_BUCKET:publicConfig.public_configuration.OUTPUT_BUCKET,RECOVERY_WORKER_PRIVATE_KEY:'disabled',RECOVERY_REGISTRAR_PRIVATE_KEY:'disabled',MERCHANT_PRIVATE_KEY:'disabled',ADMINISTRATOR_PRIVATE_KEY:'disabled',SESSION_SECRET:'disabled',OPERATOR_WALLET_ADDRESS:process.env.OPERATOR_WALLET_ADDRESS||service.OPERATOR_WALLET_ADDRESS||'disabled'};
+const registrar=await agentRegistrarBinding(true);
+const environment={AGENT_REGISTRAR_URL:registrar.AGENT_REGISTRAR_URL,AGENT_REGISTRAR_SECRET:registrar.AGENT_REGISTRAR_SECRET,DATABASE_URL:db.DATABASE_URL,DATABASE_URL_UNPOOLED:db.DATABASE_URL_UNPOOLED,OPENROUTER_API_KEY:model.OPENROUTER_API_KEY,RECOVERY_MODEL_ID:process.env.RECOVERY_MODEL_ID||model.AI_MODEL,AGENT_SERVICE_SECRET:service.AGENT_SERVICE_SECRET,AGENT_CONVERSION_URL:conversion.CONVERSION_FUNCTION_URL,AGENT_CONVERSION_SECRET:service.AGENT_CONVERSION_SECRET,AWS_ACCESS_KEY_ID:'disabled',AWS_SECRET_ACCESS_KEY:'disabled',AWS_SESSION_TOKEN:'disabled',AWS_ENDPOINT_URL_S3:storage.AWS_ENDPOINT_URL_S3,AWS_REGION:storage.AWS_REGION,OUTPUT_BUCKET:publicConfig.public_configuration.OUTPUT_BUCKET,RECOVERY_WORKER_PRIVATE_KEY:'disabled',RECOVERY_REGISTRAR_PRIVATE_KEY:'disabled',MERCHANT_PRIVATE_KEY:'disabled',ADMINISTRATOR_PRIVATE_KEY:'disabled',SESSION_SECRET:'disabled',OPERATOR_WALLET_ADDRESS:process.env.OPERATOR_WALLET_ADDRESS||service.OPERATOR_WALLET_ADDRESS||'disabled'};
 if(Object.hasOwn(process.env,'AGENT_TRIGGER_ID'))environment.AGENT_TRIGGER_ID=process.env.AGENT_TRIGGER_ID;
 if(Object.entries(environment).some(([name,value])=>!value&&name!=='AGENT_TRIGGER_ID'))throw new Error('Incomplete isolated worker credentials');
 await rm('.agent-build',{recursive:true,force:true});await mkdir('.agent-build');

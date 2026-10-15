@@ -288,6 +288,34 @@
       "when": 1791996588757,
       "tag": "0040_preserve_terminal_evidence",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792042952844,
+      "tag": "0041_aggregate_refund_capacity",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792042961610,
+      "tag": "0042_refund_service_lock_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792042961973,
+      "tag": "0043_bounded_agent_refund",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792043124090,
+      "tag": "0044_evidence_null_shapes",
+      "breakpoints": true
     }
   ]
 }

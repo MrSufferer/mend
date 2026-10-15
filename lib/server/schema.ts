@@ -1,5 +1,5 @@
 import {sql} from 'drizzle-orm';
-import { pgTable, text, boolean, integer,index, timestamp, jsonb, uuid, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import { pgTable, text, boolean, integer,bigint,index, timestamp, jsonb, uuid, uniqueIndex, check } from 'drizzle-orm/pg-core';
 import type {PaymentPayload,PaymentRequirements} from '@x402/core/types';
 import type { PurchasedTerms, RecoveryPolicy } from './terms';
 export const policies = pgTable('recovery_policies', {
@@ -134,3 +134,8 @@ export const serviceIncidents=pgTable('service_incidents',{
  evidence:jsonb('evidence').$type<{attemptIds:string[];orderIds:string[]}>().notNull(),
  generation:integer('generation').notNull(),failureGeneration:integer('failure_generation').notNull(),createdAt:timestamp('created_at',{withTimezone:true}).notNull().defaultNow(),
 });
+
+export const refundCapacity=pgTable('refund_capacity',{
+ id:text('id').primaryKey().default('merchant'),version:bigint('version',{mode:'number'}).notNull().default(0),
+ observedVersion:bigint('observed_version',{mode:'number'}),observation:jsonb('observation'),observedAt:timestamp('observed_at',{withTimezone:true}),
+},t=>[check('refund_capacity_merchant',sql`${t.id}='merchant'`)]);

@@ -1,3 +1,4 @@
+import {refundCapacity} from './capacity';
 import {randomUUID} from 'node:crypto';
 import {desc,sql} from 'drizzle-orm';
 import {z} from 'zod';
@@ -8,7 +9,7 @@ import {ApiError,jsonBody} from './http';
 export async function operatorAvailability(){
  await requireOperator();
  const [state,incidents]=await Promise.all([database().select().from(serviceAvailability),database().select().from(serviceIncidents).orderBy(desc(serviceIncidents.createdAt)).limit(20)]);
- return {availability:state[0],incidents};
+ return {availability:state[0],incidents,capacity:await refundCapacity()};
 }
 export async function operatorPause(request:Request){
  sameOrigin(request);const authority=await operatorAuthority();
