@@ -106,13 +106,13 @@ export async function lifecycle(){
   const purchase=await draft(playwright);expect((await purchase.pay()).status()).toBe(200);
   await services.conversion.kill();await backend('conversion',{INTERRUPTION_EXPERIMENT_ORDER:purchase.id});return purchase;
  }
- async function seed(options:{stopped?:boolean;paidAgoSeconds?:number;calls?:number;prepared?:boolean;expired?:boolean}={}){
+ async function seed(options:{stopped?:boolean;confirmedParserFailure?:boolean;paidAgoSeconds?:number;calls?:number;prepared?:boolean;expired?:boolean}={}){
   const id=randomUUID(),submission=randomUUID(),attempt=randomUUID(),terms=purchasedTerms(defaultPolicy,'ticket16-synthetic'),key=`results/${id}/${attempt}.txt`,now=new Date(Date.now()-(options.expired?8*86400000:0)).toISOString();
   const sha=createHash('sha256').update('Synthetic retained result').digest('hex'),publication={state:'prepared',key,sha256:sha,size:25,preparedAt:now};
   const receipt={status:'success',blockNumber:'100',blockHash:'0x'+'55'.repeat(32),amountAtomic:'1000000',decimals:6,gasUsed:'21000',effectiveGasPrice:'1'};
   await owner`INSERT INTO submissions(id,capability_hash,idempotency_key,size,sha256,terms,expires_at) VALUES(${submission},${id},${id},1,${sha},${JSON.stringify(terms)}::jsonb,clock_timestamp()+interval '1 day')`;
   await owner`INSERT INTO orders(id,submission_id,capability_hash,owner_wallet,payer_wallet,status,paid_at,payment_transaction,payment_receipt,terms,upload_created_at,upload_expires_at,upload_key,upload_size,upload_sha256,pages) VALUES(${id},${submission},${id},${payer.address.toLowerCase()},${payer.address.toLowerCase()},'processing_failed',clock_timestamp()-${options.paidAgoSeconds??86400}*interval '1 second',${'0x'+randomBytes(32).toString('hex')},${JSON.stringify(receipt)}::jsonb,${JSON.stringify(terms)}::jsonb,clock_timestamp(),clock_timestamp()+interval '7 days',${`accepted/${submission}.pdf`},1,${sha},1)`;
-  await owner`INSERT INTO execution_attempts(id,order_id,generation,state,stopped_at,publisher_finished_at,publication_fenced_at,final_output_check,output_publication) VALUES(${attempt},${id},0,'stopped',clock_timestamp(),CASE WHEN ${!!options.stopped} THEN clock_timestamp() END,CASE WHEN ${!!options.stopped} THEN clock_timestamp() END,CASE WHEN ${!!options.prepared} THEN 'unknown' ELSE 'absent' END,${options.prepared?JSON.stringify(publication):null}::jsonb)`;
+  await owner`INSERT INTO execution_attempts(id,order_id,generation,state,stopped_at,publisher_finished_at,publication_fenced_at,final_output_check,output_publication,stop_reason,parser_exit_code) VALUES(${attempt},${id},0,'stopped',clock_timestamp(),CASE WHEN ${!!options.stopped} THEN clock_timestamp() END,CASE WHEN ${!!options.stopped} THEN clock_timestamp() END,CASE WHEN ${!!options.prepared} THEN 'unknown' ELSE 'absent' END,${options.prepared?JSON.stringify(publication):null}::jsonb,${options.confirmedParserFailure?'parser_error':null},${options.confirmedParserFailure?1:null})`;
   if(options.calls!==undefined)await owner`INSERT INTO recovery_cases(order_id,calls_used) VALUES(${id},${options.calls})`;
   return {id,attempt,submission,key,publication};
  }

@@ -18,9 +18,8 @@ const source={sha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).tri
 let h;
 try{
  h=await lifecycle(); // Guards every DB role, exact isolated DB, migration prefix before writes.
- const first=await h.seed({stopped:true}),second=await h.seed({stopped:true});
+ const first=await h.seed({stopped:true,confirmedParserFailure:true}),second=await h.seed({stopped:true,confirmedParserFailure:true});
  for(const order of [first,second]){
-  await h.owner`UPDATE execution_attempts SET stop_reason='parser_error',parser_exit_code=1 WHERE id=${order.attempt}`;
   const result=await h.role('database-conversion')`SELECT mend_fail_execution(${order.attempt}::uuid,'absent','pdf_conversion_failed') AS value`;
   if(!result[0].value.recorded||result[0].value.paused)throw Error('Expected exactly two canonical fixture failures below deterministic pause threshold');
  }

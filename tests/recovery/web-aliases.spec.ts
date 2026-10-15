@@ -44,3 +44,20 @@ test('web registrar alias still derives entitlement from a current operator requ
  expect((await h.state()).refunds).toHaveLength(0);expect((await h.state()).charges).toHaveLength(0);
  await request.dispose();
 });
+test('two canonical fixture failures allow agent-requested pause below deterministic threshold',async({playwright})=>{
+ const first=await h.seed({stopped:true,confirmedParserFailure:true}),second=await h.seed({stopped:true,confirmedParserFailure:true});
+ for(const order of [first,second]){
+  const result=await h.role('database-conversion')`SELECT mend_fail_execution(${order.attempt}::uuid,'absent','pdf_conversion_failed') AS value`;
+  expect(result[0].value).toMatchObject({recorded:true,paused:false});
+ }
+ const request=await playwright.request.newContext({baseURL:h.origin});await h.signIn(request);
+ expect((await(await request.get('/api/operator/service')).json()).availability.paused).toBe(false);
+ await h.control({modelTool:'request_pause'});
+ const response=await h.call('agent','/investigate',{orderId:first.id});expect(response.status).toBe(200);
+ const result=await response.json();
+ expect(result.actions).toEqual(expect.arrayContaining([expect.objectContaining({tool:'request_pause',evidence:expect.objectContaining({paused:true})})]));
+ expect(result.case.callsUsed).toBe(2);
+ expect((await(await request.get('/api/operator/service')).json()).availability).toMatchObject({paused:true,failureGeneration:2});
+ expect((await h.state()).charges).toHaveLength(0);expect((await h.state()).refunds).toHaveLength(0);
+ await request.dispose();
+});
