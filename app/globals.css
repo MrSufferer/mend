@@ -66,3 +66,10 @@
 .service-incidents textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 
 .capacity-facts dd { overflow-wrap: anywhere; min-width: 0; }
+
+.service-health { margin-top: 28px; padding-top: 4px; border-top: 1px solid var(--border); }
+.service-health p { margin: 12px 0; max-width: 72ch; }
+.health-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
+.health-components { list-style: none; padding: 0; margin: 16px 0; }
+.health-components li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.health-components span { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }

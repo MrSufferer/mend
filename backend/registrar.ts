@@ -1,4 +1,5 @@
 import './database-timeout';
+import {paymentAvailable,healthRpc} from './health-payment';
 import {eq,sql} from 'drizzle-orm';
 import type {Hex} from 'viem';
 import {database as defaultDatabase} from '../lib/server/db';
@@ -56,6 +57,18 @@ async function reconcileCapacity(reader:CapacityReader=options.capacityReader??r
 }
 return {async fetch(request:Request){
  const path=new URL(request.url).pathname.replace(/\/+/g,'/');
+ if(path==='/health/check'){
+  if(!authorized(request,'HEALTH_REGISTRAR_SECRET'))return Response.json({error:'unauthorized'},{status:401});
+  let id:string|undefined;
+  try{
+   const body=await request.json();if(request.method!=='POST'||!body||Object.keys(body).join()!=='runId'||!uuid(body.runId))return Response.json({error:'invalid_request'},{status:400});id=body.runId;
+   await database().execute(sql`SELECT public.mend_health_registrar(${id}::uuid,'claim')`);
+   const rpc=healthRpc();
+   await Promise.all([paymentAvailable(rpc),reconcileCapacity(rpc as unknown as CapacityReader)]);
+   await database().execute(sql`SELECT public.mend_health_registrar(${id}::uuid,'complete')`);
+   return Response.json({status:'checked'});
+  }catch{if(id)try{await database().execute(sql`SELECT public.mend_health_registrar(${id}::uuid,'failed')`);}catch{/* Expired work cannot be completed. */}return Response.json({error:'payment_or_capacity_unavailable'},{status:503});}
+ }
  if(request.method!=='POST'||!['/register','/operator','/probe','/capacity','/agent'].includes(path))return Response.json({error:'not_found'},{status:404});
  if(!authorized(request,path==='/operator'?'OPERATOR_REGISTRAR_SECRET':path==='/agent'?'AGENT_REGISTRAR_SECRET':'REGISTRAR_SERVICE_SECRET'))return Response.json({error:'unauthorized'},{status:401});
  let requestId:string|undefined;
