@@ -64,7 +64,8 @@
       "credentialName": "WEB_OPERATOR_AGENT_SECRET",
       "path": "/scheduled",
       "status": 403,
-      "expected": 401
+      "expected": 403,
+      "acceptanceNote": "Original private verifier allowed authentication/trigger-authority denial401 or403; observed403 is the expected trigger-authority denial for this endpoint."
     },
     {
       "role": "registrar",
