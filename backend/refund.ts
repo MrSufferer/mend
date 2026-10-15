@@ -18,10 +18,12 @@ export function createRefundService(options:{database?:typeof defaultDatabase;re
  if(path==='/reconcile'){const body=await request.json();if(!body||Object.keys(body).some(key=>key!=='orderId')||body.orderId!==undefined&&!uuid(body.orderId))return Response.json({error:'invalid_request'},{status:400});orderId=body.orderId;}
  const selected=await database().execute(sweep?sql`SELECT public.mend_refund_sweep(${sweep.id}::text,${sweep.at}::timestamptz) AS order_id`:orderId?sql`SELECT order_id FROM public.mend_refund_queue() WHERE order_id=${orderId}::uuid`:sql`SELECT order_id FROM public.mend_refund_queue() LIMIT 1`);
  if(!selected.rows.length||!selected.rows[0].order_id){await (options.capacity??callCapacity)();return Response.json({status:'idle'});}orderId=selected.rows[0].order_id as string;
- const verified=await (options.registrar??callRegistrar)(orderId);
+ let verified:{status:string;reason?:string},capacity:Awaited<ReturnType<typeof callCapacity>>;
+ // Registration may fence new debt before returning pending or failing. Observe it either way.
+ try{verified=await (options.registrar??callRegistrar)(orderId);}
+ finally{capacity=await (options.capacity??callCapacity)();}
  if(verified.status!=='registered')return Response.json(verified);
  const result=await database().execute(sql`SELECT * FROM public.refunds WHERE order_id=${orderId}::uuid`),r=result.rows[0] as RefundBinding;
- const capacity=await (options.capacity??callCapacity)();
  if(!['sufficient','deficit'].includes(capacity.status))throw Error('capacity_unknown');
  const balance=BigInt(capacity.balanceAtomic),allowance=BigInt(capacity.allowanceAtomic);
  if(balance<BigInt(r.amount_atomic)||allowance<BigInt(r.amount_atomic)){const blocker=balance<BigInt(r.amount_atomic)?'reserve_unfunded':'allowance_exhausted';await database().execute(sql`SELECT public.mend_refund_blocker(${orderId}::uuid,${blocker})`);return Response.json({status:'pending',reason:blocker});}

@@ -3,6 +3,7 @@ import {neon} from '@neondatabase/serverless';
 import {drizzle} from 'drizzle-orm/neon-http';
 import {createServer} from 'node:http';
 import {parseEnv} from 'node:util';
+import {randomUUID} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {privateKeyToAccount} from 'viem/accounts';
 import {encodeAbiParameters,encodeEventTopics,keccak256,type Hex} from 'viem';
@@ -59,4 +60,29 @@ for(const recovery of ['funding','allowance'])test(`${recovery}: real worker and
   await Promise.all([reconcile(second.id),reconcile(second.id)]);await reconcile(second.id);expect(effects).toBe(2);
   const [count]=await first.owner.query("SELECT count(*)::int AS n FROM refund_transactions WHERE kind='refund' AND order_id IN ($1,$2)",[first.id,second.id]);expect(count.n).toBe(2);
  }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));await first.cleanup();await second.cleanup();for(const k of Object.keys(process.env))if(!(k in prior))delete process.env[k];Object.assign(process.env,prior);}
+});
+
+for(const registration of ['pending','unavailable'])for(const deficit of ['funding','allowance'])test(`${registration} registration still records the ${deficit} deficit through scheduled worker and registrar HTTP`,async()=>{
+ const f=await refundFixture(),invocation=randomUUID(),registrarDb=db('database-registrar'),workerDb=db('database-refund-worker');
+ const registrarSql=role('database-registrar'),conversion=role('database-conversion');
+ let payouts=0;
+ const reader:CapacityReader={getChainId:async()=>5042002,getBlock:async()=>({number:BigInt(100),hash:blockHash,timestamp:BigInt(Math.floor(Date.now()/1000))}),getTransactionReceipt:async()=>{throw Error('not included');},readContract:async args=>args.functionName==='balanceOf'?BigInt(deficit==='funding'?0:10000000):args.functionName==='remainingDailyAllowance'?BigInt(deficit==='allowance'?0:10000000):[`0x${'00'.repeat(20)}`,BigInt(0),false]};
+ const registrar=createRegistrarService({database:()=>registrarDb,reader:()=>reader,capacityReader:reader,submit:async()=>{if(registration==='unavailable')throw Error('controlled registrar signer unavailable');return {status:'pending',reason:'receipt_unknown'};}});
+ const secret='controlled-registration-capacity-secret-'.repeat(2),prior={...process.env};Object.assign(process.env,{REGISTRAR_SERVICE_SECRET:secret,REFUND_SERVICE_SECRET:secret,REFUND_TRIGGER_ID:'controlled-registration-capacity-trigger'});
+ let worker:ReturnType<typeof createRefundService>;
+ const server=createServer(async(req,res)=>{const chunks:Buffer[]=[];for await(const chunk of req)chunks.push(chunk);const response=await (req.url==='/worker'?worker:registrar).fetch(new Request(`http://fixture${req.url==='/worker'?'/scheduled':req.url}`,{method:req.method,headers:req.headers as Record<string,string>,body:Buffer.concat(chunks)}));res.writeHead(response.status);res.end(await response.text());});
+ try{
+  await conversion.query("SELECT mend_refund_output_check($1,$2::jsonb,'absent')",[f.id,JSON.stringify([f.attempt])]);
+  await registrarSql.query('SELECT mend_refund_fence($1,$2::jsonb)',[f.id,JSON.stringify(f.payment())]);
+  await f.owner.query("UPDATE service_availability SET paused=false WHERE id='merchant'");
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));process.env.REGISTRAR_SERVICE_URL=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
+  worker=createRefundService({database:()=>workerDb,submit:async()=>{payouts++;throw Error('unregistered payout forbidden');}});
+  const response=await fetch(`${process.env.REGISTRAR_SERVICE_URL}/worker`,{method:'POST',headers:{'X-Neon-Trigger-Invocation-Id':invocation,'Content-Type':'application/json'},body:JSON.stringify({version:1,invocation_id:invocation,trigger:{type:'schedule',id:process.env.REFUND_TRIGGER_ID},data:{scheduled_at:new Date().toISOString()}})});
+  expect(response.status).toBe(registration==='pending'?200:503);expect(await response.json()).toEqual(registration==='pending'?{status:'registration_pending',reason:'receipt_unknown'}:{status:'pending',reason:'refund_reconciliation_unavailable'});expect(payouts).toBe(0);
+  const [capacity]=await role('database-web').query("SELECT observation,observed_version=version AS fresh FROM refund_capacity WHERE id='merchant'");
+  expect(capacity.fresh).toBe(true);expect(capacity.observation).toMatchObject({status:'deficit',debtAtomic:'1000000',balanceAtomic:deficit==='funding'?'0':'10000000',allowanceAtomic:deficit==='allowance'?'0':'10000000',reserveDeficit:deficit==='funding',allowanceDeficit:deficit==='allowance',outstandingOrderIds:[f.id]});
+  const [availability]=await role('database-web').query("SELECT paused FROM service_availability WHERE id='merchant'");expect(availability.paused).toBe(true);
+  const [incident]=await role('database-web').query("SELECT evidence FROM service_incidents WHERE actor='refund_capacity' ORDER BY created_at DESC LIMIT 1");expect(incident.evidence.outstandingOrderIds).toEqual([f.id]);
+  const [refund]=await role('database-web').query('SELECT state,registered_at,refunded_at,blocker FROM refunds WHERE order_id=$1',[f.id]);expect(refund).toMatchObject({registered_at:null,refunded_at:null,blocker:deficit==='funding'?'reserve_unfunded':'allowance_exhausted'});
+ }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));await f.owner.query('DELETE FROM refund_sweeps WHERE invocation_id=$1',[invocation]);await f.cleanup();for(const k of Object.keys(process.env))if(!(k in prior))delete process.env[k];Object.assign(process.env,prior);}
 });
