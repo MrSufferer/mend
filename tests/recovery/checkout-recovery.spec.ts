@@ -126,14 +126,25 @@ test('chosen files validate real content, recover from rejection, and support bl
 
 
 test('a stale second tab reuses the first tab authorization without another wallet signature',async({page,context})=>{
- await validatedSample(page);
- const other=await context.newPage();await wallet(other);await other.goto(h.origin);await authenticate(other);
+ // Connect both synthetic wallets before creating the shared SIWE session. Connecting
+ // a previously disconnected tab deliberately revokes any existing session.
+ await wallet(page);await page.goto(h.origin);
+ const other=await context.newPage();await wallet(other);await other.goto(h.origin);
+ const disconnectedSessionRevoked=other.waitForResponse(response=>new URL(response.url()).pathname==='/api/auth/logout'&&response.ok());
+ await other.getByRole('button',{name:'Connect wallet',exact:true}).click();
+ await disconnectedSessionRevoked;
+ await expect(other.getByRole('button',{name:'Sign in',exact:true})).toBeEnabled();
+ await page.bringToFront();await authenticate(page);
+ await page.getByRole('button',{name:'Use sample PDF',exact:true}).click();
+ await page.getByLabel('I accept the disclosed purchase terms').check();
+ await page.getByRole('button',{name:'Upload and validate PDF',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Review payment in wallet',exact:true})).toBeEnabled();
+ const loadedSession=other.waitForResponse(response=>new URL(response.url()).pathname==='/api/auth/session'&&response.status()===200);
+ await other.evaluate(()=>window.dispatchEvent(new Event('focus')));await loadedSession;
+ await expect(other.getByText('Authenticated',{exact:true})).toBeVisible();
  await expect(other.getByRole('button',{name:'Review payment in wallet',exact:true})).toBeVisible();
  await other.getByLabel('I accept the disclosed purchase terms').check();
- // The synthetic wallet starts disconnected in each page and revokes the shared session on connection.
- await page.bringToFront();await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
- await expect(page.getByText('Authenticated',{exact:true})).toBeVisible();
- await page.getByLabel('I accept the disclosed purchase terms').check();
+ await page.bringToFront();
  let original='';await page.route('**/api/orders/*/payment',async route=>{const header=route.request().headers()['payment-signature'];if(header){original=header;await route.abort();}else await route.continue();});
  await page.getByRole('button',{name:'Review payment in wallet',exact:true}).click();
  await expect(page.getByRole('button',{name:'Check existing payment',exact:true})).toBeEnabled();expect(original).toBeTruthy();
