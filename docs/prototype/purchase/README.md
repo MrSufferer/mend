@@ -122,4 +122,4 @@ TypeScript passed. Browser checks passed separate connection/sign-in/payment, co
 
 No prototype test suite was added. Existing shared wallet-connector optional-module build warnings were observed; the prototype does not mount those live providers. Production integration and human-only QA remain untested and deferred.
 
-The capture commit is recorded below after committing the prototype. No remote publication or issue comment was made.
+Prototype capture commit: `f0a079a316ec61e0cd810baba721fcbb75c3bfd8` on `prototype/mend-browser-purchase`. The subsequent documentation commit only records this immutable pointer. No remote publication or issue comment was made.
