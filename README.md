@@ -8,6 +8,7 @@ Mend converts a paid text PDF into private plain text, tracks interrupted execut
 - [Labeled recovery demonstrations and evidence](docs/release-demonstrations.md)
 - [Provider exposure, retention and authority](docs/release-trust.md)
 - [Licensing and dependency inventory](docs/release-licenses.md)
+- [Controlled provider restoration reference](docs/provider-restoration.md)
 - [Isolated process-crash and concurrency suite](docs/recovery-lifecycle.md)
 
 The source implements paid conversion, recovery, isolated refund registration and repayment, service health, and independent upload/output retention. Historical provider proofs remain dated observations. A protected preview or a passing fixture suite does not establish a publicly accepted release; the [release status](docs/release.md#acceptance-status) lists the remaining gates.
