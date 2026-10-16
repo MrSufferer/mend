@@ -24,6 +24,14 @@ function includeTransaction(b:any){const hash=keccak256(b.raw),kind=b.kind,r=b.b
 async function body(req:AsyncIterable<Buffer>){const chunks=[];for await(const chunk of req)chunks.push(chunk);return Buffer.concat(chunks);}
 const server=createServer(async(req,res)=>{try{
  const url=new URL(req.url!,'http://fixture'),path=url.pathname,bytes=await body(req);
+ // Only the owned storage fixture accepts browser-origin direct upload/download.
+ if(/^\/ticket16-[^/]+-(uploads|outputs)\//.test(path)){
+  res.setHeader('Access-Control-Allow-Origin','*');
+  res.setHeader('Access-Control-Allow-Methods','PUT, GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers','*');
+  if(req.method==='OPTIONS'){res.writeHead(204);res.end();return;}
+ }
+
  const json=(value:unknown,status=200)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(value));};
  if(path==='/control'){
   const c=JSON.parse(bytes.toString());if(c.hold)holds.set(c.hold,[]);if(c.release){const waiting=holds.get(c.release)??[];holds.delete(c.release);waiting.forEach(r=>r());}

@@ -1,0 +1,25 @@
+import {test,expect} from '@playwright/test';
+import {wallet} from '../wallet-fixture';
+import {lifecycle,type Lifecycle} from './harness';
+let h:Lifecycle;
+test.beforeAll(async()=>{h=await lifecycle();});
+test.afterAll(async()=>{await h?.close();});
+test.beforeEach(async()=>{await h.reset();});
+test('browser sample purchase validates a real PDF before requesting payment and preserves its authorization on reload',async({page})=>{
+ await wallet(page);await page.goto(h.origin);
+ await page.getByRole('button',{name:'Use sample PDF',exact:true}).click();
+ await expect(page.getByText('mend-sample.pdf',{exact:true})).toBeVisible();
+ await page.getByLabel('I accept the disclosed purchase terms').check();
+ await page.getByRole('button',{name:'Connect wallet',exact:true}).click();
+ await page.getByRole('button',{name:'Sign in',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Upload and validate PDF',exact:true})).toBeEnabled();
+ await page.getByRole('button',{name:'Upload and validate PDF',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Review payment in wallet',exact:true})).toBeEnabled();
+ let header='';await page.route('**/api/orders/*/payment',async route=>{const signed=route.request().headers()['payment-signature'];if(signed){header=signed;await route.abort();}else await route.continue();});
+ await page.getByRole('button',{name:'Review payment in wallet',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Check existing payment',exact:true})).toBeVisible();expect(header).toBeTruthy();
+ await page.reload();await page.getByRole('button',{name:'Connect wallet',exact:true}).click();await page.getByRole('button',{name:'Sign in',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Check existing payment',exact:true})).toBeVisible();
+ let replay='';await page.route('**/api/orders/*/payment',async route=>{replay=route.request().headers()['payment-signature'];await route.abort();});
+ await page.getByRole('button',{name:'Check existing payment',exact:true}).click();await expect.poll(()=>replay).toBe(header);
+});
