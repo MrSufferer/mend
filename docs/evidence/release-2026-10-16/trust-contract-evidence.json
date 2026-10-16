@@ -1,0 +1,181 @@
+{
+  "observedAt": "2026-10-16T03:36:27.905295+00:00",
+  "sourceCommit": "609c5bdc20ffe0b1cf47735f1cf3d2318bacddae",
+  "chainId": 5042002,
+  "block": 67436756,
+  "blockHash": "0x9599ffda3167e087402252ccb0c20165d56212d9c8c608c70b066d0342122a65",
+  "address": "0x76b29d6a6eab98b32415b8a6adf5d587d991e082",
+  "token": "0x3600000000000000000000000000000000000000",
+  "tokenDecimals": 6,
+  "capAtomic": 10000000,
+  "balanceAtomic": 8000000,
+  "nativeBalanceAtomic": 8000000000000000000,
+  "remainingAllowanceAtomic": 10000000,
+  "namedAccountRoles": {
+    "administrator": {
+      "administrator": true,
+      "registrar": false,
+      "worker": false
+    },
+    "registrar": {
+      "administrator": false,
+      "registrar": true,
+      "worker": false
+    },
+    "worker": {
+      "administrator": false,
+      "registrar": false,
+      "worker": true
+    }
+  },
+  "roleEventCount": 3,
+  "allRoleHoldersFromDeploymentEvents": {
+    "administrator": [
+      "0xd6a270fc56b3b50da89879dfc8dce529f8419958"
+    ],
+    "registrar": [
+      "0xf313a44e910d6b7164cd587be1aeef2123e5cb6c"
+    ],
+    "worker": [
+      "0xc6c5084dc5baf8634b2285af448d7bf524826522"
+    ]
+  },
+  "exactRuntimeAndConstructorMatch": true,
+  "explorerCommittedAndCompiledAbiMatch": true,
+  "verifiedSources": [
+    {
+      "name": "src/RefundReserve.sol",
+      "sha256": "5eb9605395bb97dce62699d7dc3036afcf67064ac1cfd7f78b4bb88a53fa8546"
+    },
+    {
+      "name": "lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol",
+      "sha256": "9055c2994b37dea1a41b7b7926dcb510f05dbe2540b0aafc5fbee9558fffd0ca"
+    },
+    {
+      "name": "lib/openzeppelin-contracts/contracts/access/AccessControl.sol",
+      "sha256": "93c8ebfe7b36ef4d180f1660a5a741125691957726209720af476fdd5c7bac43"
+    },
+    {
+      "name": "lib/openzeppelin-contracts/contracts/access/IAccessControl.sol",
+      "sha256": "140304b7e99d517c57a13f391dfd3b550ca633a507f7b2af130f391b6cd89cc5"
+    },
+    {
+      "name": "lib/openzeppelin-contracts/contracts/interfaces/IERC1363.sol",
+      "sha256": "9c3a75a925a6dac9e88b03cddc58d42fe3131b0aaaad84408521f3f7af2f991b"
+    },
+    {
+      "name": "lib/openzeppelin-contracts/contracts/interfaces/IERC165.sol",
+      "sha256": "dfb3f56fa928a7c6cae41a7ce2c86b9210fa18d33fa26389099d66a0fa790368"
+    },
+    {
+      "name": "lib/openzeppelin-contracts/contracts/interfaces/IERC20.sol",
+      "sha256": "0158e2d3e0e28bedd99eec13dcf1a8aa3a70a5b7e4bb2ad709609c95fcc740d1"
+    },
+    {
+      "name": "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol",
+      "sha256": "01b6f5c4fa45fd38822b286ecef6daf983d27306dd6362496fa71b3e4600b72c"
+    },
+    {
+      "name": "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol",
+      "sha256": "ac1fd9fa99b194a8db8dfa9ae8e3ff44feaa8f16668241fd2b66ae8b47d7c082"
+    },
+    {
+      "name": "lib/openzeppelin-contracts/contracts/utils/Context.sol",
+      "sha256": "847fda5460fee70f56f4200f59b82ae622bb03c79c77e67af010e31b7e2cc5b6"
+    },
+    {
+      "name": "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol",
+      "sha256": "32fbb1c908ec1b4de85cc1bb10091aebd5816ffe80dfdd5ca5e084fbea67a462"
+    },
+    {
+      "name": "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol",
+      "sha256": "61a2b12c96857aaa35f48aeda67a4281637a42494c0b3795be0ae976aa7b3793"
+    }
+  ],
+  "canonicalSuccessReceipts": [
+    {
+      "transactionHash": "0x35725ca74ecc3451080d2f38cc02b7bbb9f7a0d38b6a38945caaa52b826be009",
+      "blockNumber": "0x3feadbe",
+      "blockHash": "0x52fbea1d2f88003c9e468e5740e091ad2f5def7d63e397225ff65a32d5da9c73",
+      "status": "0x1",
+      "from": "0xd6a270fc56b3b50da89879dfc8dce529f8419958",
+      "to": null,
+      "contractAddress": "0x76b29d6a6eab98b32415b8a6adf5d587d991e082"
+    },
+    {
+      "transactionHash": "0xb62f618db078a68e311005f8b0457e3afe0b5c751162539ae16b2df07cccaf47",
+      "blockNumber": "0x3feae62",
+      "blockHash": "0x99651bfca2679875c064239f183673cf690788ab804c52392dc6bfa680023632",
+      "status": "0x1",
+      "from": "0xd6a270fc56b3b50da89879dfc8dce529f8419958",
+      "to": "0x3600000000000000000000000000000000000000",
+      "contractAddress": null
+    },
+    {
+      "transactionHash": "0xbf5c3c126b39b05a358ec3f25c6f2d94bd7c66f797790c3d3da305bd470dd1d4",
+      "blockNumber": "0x3feae80",
+      "blockHash": "0xd6bdd8512af25391ae861768ea677c8c16f2422919a7fabc1e95a1a1556eed7a",
+      "status": "0x1",
+      "from": "0xf313a44e910d6b7164cd587be1aeef2123e5cb6c",
+      "to": "0x76b29d6a6eab98b32415b8a6adf5d587d991e082",
+      "contractAddress": null
+    },
+    {
+      "transactionHash": "0x58fa5813ffcaa8299c8b75f6b27c4afac081ea956395ba2eb3c6dc11a7d67a4e",
+      "blockNumber": "0x3feaee5",
+      "blockHash": "0x49ea35795443f69c46c4fd1bc5e60c8ceedd76d4c6c9049cd6e5bcd61ee68eef",
+      "status": "0x1",
+      "from": "0xc6c5084dc5baf8634b2285af448d7bf524826522",
+      "to": "0x76b29d6a6eab98b32415b8a6adf5d587d991e082",
+      "contractAddress": null
+    },
+    {
+      "transactionHash": "0x11216ebe7a2d66581a4ca7bb429934ef2ed2455d2870d0c673d782f31efc1125",
+      "blockNumber": "0x400cbcb",
+      "blockHash": "0x860aa5b26fdccd8cec82f29c42fdf7d579b6d9fde51dd518528810cc138c0f3d",
+      "status": "0x1",
+      "from": "0xf313a44e910d6b7164cd587be1aeef2123e5cb6c",
+      "to": "0x76b29d6a6eab98b32415b8a6adf5d587d991e082",
+      "contractAddress": null
+    },
+    {
+      "transactionHash": "0x3e85d67de67b3b09100f64a893816ac4003f0846b48045ad72250864d6ef4bad",
+      "blockNumber": "0x400cc22",
+      "blockHash": "0xaec6f909a6ca48f807ee7b694ba5744b03501aedd5e683f98126fea1ba266fe6",
+      "status": "0x1",
+      "from": "0xc6c5084dc5baf8634b2285af448d7bf524826522",
+      "to": "0x76b29d6a6eab98b32415b8a6adf5d587d991e082",
+      "contractAddress": null
+    }
+  ],
+  "runtimeSha256": "af9d9c55f65fca7025c5cc63ce9fa9bcee353bc78d5cb0500279098cb76cc567",
+  "scope": "Read-only RPC + current explorer source freshly compiled using pinned solc; no broadcast, signing or new spend.",
+  "independentLocalChecks": {
+    "arcNetworkTests": {
+      "passed": 10,
+      "fuzzRuns": 1000,
+      "seed": "0x18",
+      "invariants": 2,
+      "invariantRunsEach": 1000,
+      "depth": 64,
+      "reverts": 0
+    },
+    "gasSnapshotCheck": "pass",
+    "slither": {
+      "version": "0.11.5",
+      "contracts": 42,
+      "detectors": 101,
+      "findings": 0
+    }
+  },
+  "evidenceSha256": {
+    "fresh-contract-review.py": "def503e9c8ddeedb524ec3800b54613c3cbbd2921eb2416ef0168d6d523bc7a5",
+    "explorer-source-fresh.json": "40dc6e96c2016f2950346a726f0e3890c2815307103ab4a56d192b0bf7da3bab",
+    "fresh-standard-input.json": "db16773e11c0d2571908cba550093903363ecc11afe2230359ae3e8e64f2a374",
+    "fresh-standard-output.json": "0d1edd60224fb59160ec2a007cad928e77a012e730976c075f0f4033c6023477",
+    "contract-tests-arc-fresh.log": "0698cef9bad3358f52ebf7c33eefc2f022e2aa290bbb26d7308310c5086cc804",
+    "contract-gas-arc-check-fresh.log": "c5ac12981f37d7bd01dd64be0380868678d6c6c638eeab6b2eb71b5183bb13f2",
+    "slither-fresh.json": "3dc292d9cb9d5ddaff4d10d0a85d78418e6f871c4e5278677723214a74a0e2a9",
+    "slither-fresh.log": "fe54fb7f221b9b0951153f3646bb9bd1b2db524285d93c6490e1bd45cdc36402"
+  }
+}

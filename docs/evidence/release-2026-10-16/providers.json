@@ -1,0 +1,63 @@
+{
+  "at": "2026-10-16T03:37:40.743269+00:00",
+  "functions": [
+    {
+      "role": "conversion",
+      "slug": "mendconversion6",
+      "url": "https://br-patient-wave-azrhhl2v-mendconversion6.compute.c-3.ap-southeast-1.aws.neon.tech/",
+      "currentDeploymentId": 23,
+      "activeDeploymentId": 23,
+      "status": "completed"
+    },
+    {
+      "role": "registrar",
+      "slug": "mendregistrar11",
+      "url": "https://br-patient-wave-azrhhl2v-mendregistrar11.compute.c-3.ap-southeast-1.aws.neon.tech/",
+      "currentDeploymentId": 8,
+      "activeDeploymentId": 8,
+      "status": "completed"
+    },
+    {
+      "role": "agent",
+      "slug": "mendagent7",
+      "url": "https://br-patient-wave-azrhhl2v-mendagent7.compute.c-3.ap-southeast-1.aws.neon.tech/",
+      "currentDeploymentId": 9,
+      "activeDeploymentId": 9,
+      "status": "completed"
+    },
+    {
+      "role": "receipts",
+      "slug": "mendreceipts",
+      "url": "https://br-patient-wave-azrhhl2v-mendreceipts.compute.c-3.ap-southeast-1.aws.neon.tech/",
+      "currentDeploymentId": 5,
+      "activeDeploymentId": 5,
+      "status": "completed"
+    },
+    {
+      "role": "refund",
+      "slug": "mendrefund11",
+      "url": "https://br-patient-wave-azrhhl2v-mendrefund11.compute.c-3.ap-southeast-1.aws.neon.tech/",
+      "currentDeploymentId": 4,
+      "activeDeploymentId": 4,
+      "status": "completed"
+    }
+  ],
+  "web": {
+    "id": "dpl_Agt3HdySS2828i31Mfv6rpbw31RQ",
+    "url": "mend-3hvszzylk-gadillacers-projects.vercel.app",
+    "readyState": "READY",
+    "target": null,
+    "projectId": "prj_kxV9vCU6WSADn5BbRmGdhDRX3vSI",
+    "meta": {
+      "githubCommitRef": "integration/ticket17",
+      "githubCommitSha": "96e05307dc6dcfa469eae69d1f95b043fdd42a6a",
+      "reviewedCommit": "96e05307dc6dcfa469eae69d1f95b043fdd42a6a",
+      "gitCommitSha": "4325ec4281acce0568d00f405f249ca591b648cc",
+      "gitDirty": "1",
+      "gitRootDirectory": ".worktrees/ticket17-context/public-source"
+    },
+    "readbackError": null,
+    "sourceIdentityCaveat": "Explicit reviewedCommit/githubCommitSha refer to runtime96 clean archive; automatic gitCommitSha/gitDirty inherited ancestor workspace, so provider metadata alone does not independently verify deployed bytes."
+  },
+  "writeOperations": 0
+}

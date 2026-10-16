@@ -1,0 +1,214 @@
+{
+  "at": "2026-10-16T03:35:57.157Z",
+  "origin": "https://mend-3hvszzylk-gadillacers-projects.vercel.app",
+  "checks": [
+    {
+      "name": "anonymous /",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "anonymous /orders",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "anonymous /recovery",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "anonymous /api/orders",
+      "actual": 401,
+      "expected": 401,
+      "status": "PASS"
+    },
+    {
+      "name": "anonymous /api/operator/orders",
+      "actual": 401,
+      "expected": 401,
+      "status": "PASS"
+    },
+    {
+      "name": "anonymous /api/operator/service",
+      "actual": 401,
+      "expected": 401,
+      "status": "PASS"
+    },
+    {
+      "name": "foreign origin challenge",
+      "actual": 403,
+      "expected": 403,
+      "status": "PASS"
+    },
+    {
+      "name": "purchaser challenge",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "purchaser verify",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "purchaser challenge replay",
+      "actual": 401,
+      "expected": 401,
+      "status": "PASS"
+    },
+    {
+      "name": "operator challenge",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "operator verify",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "operator challenge replay",
+      "actual": 401,
+      "expected": 401,
+      "status": "PASS"
+    },
+    {
+      "name": "customer operator authorization",
+      "actual": 403,
+      "expected": 403,
+      "status": "PASS"
+    },
+    {
+      "name": "customer list",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "foreign wallet ",
+      "actual": 404,
+      "expected": 404,
+      "status": "PASS"
+    },
+    {
+      "name": "foreign wallet /upload",
+      "actual": 404,
+      "expected": 404,
+      "status": "PASS"
+    },
+    {
+      "name": "foreign wallet /result",
+      "actual": 404,
+      "expected": 404,
+      "status": "PASS"
+    },
+    {
+      "name": "historical original-payer download",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "private result cache",
+      "actual": "private, no-store",
+      "expected": "private, no-store",
+      "status": "PASS"
+    },
+    {
+      "name": "operator filter unresolved",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "operator filter processing",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "operator filter unpaid",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "operator filter completed",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "operator foreign-origin action",
+      "actual": 403,
+      "expected": 403,
+      "status": "PASS"
+    },
+    {
+      "name": "synthetic health begin",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "synthetic authenticated retrieval",
+      "actual": 200,
+      "expected": 200,
+      "status": "PASS"
+    },
+    {
+      "name": "synthetic complete health",
+      "actual": "passed",
+      "expected": "passed",
+      "status": "PASS"
+    }
+  ],
+  "financialActions": 0,
+  "ownedOrderCount": 11,
+  "result": {
+    "historical": true,
+    "bytes": 37,
+    "sha256": "8758c5f05eb8c2c2782d1ceb958481e643fd7f55c7e63256b0618009239609e9"
+  },
+  "health": {
+    "synthetic": true,
+    "id": "8d00bf75-be3f-48e4-9176-bde1a19fa1e1",
+    "status": "passed",
+    "resultBytes": 45,
+    "components": {
+      "validation": {
+        "status": "passed",
+        "passedAt": "2026-10-16T03:36:20.132661+00:00"
+      },
+      "parser": {
+        "status": "passed",
+        "passedAt": "2026-10-16T03:36:24.71554+00:00"
+      },
+      "storage": {
+        "status": "passed",
+        "passedAt": "2026-10-16T03:36:24.938107+00:00"
+      },
+      "payment": {
+        "status": "passed",
+        "passedAt": "2026-10-16T03:36:26.782925+00:00"
+      },
+      "capacity": {
+        "status": "passed",
+        "passedAt": "2026-10-16T03:36:27.870304+00:00"
+      },
+      "retrieval": {
+        "status": "passed",
+        "passedAt": "2026-10-16T03:36:31.760224+00:00"
+      }
+    }
+  },
+  "status": "PASS"
+}

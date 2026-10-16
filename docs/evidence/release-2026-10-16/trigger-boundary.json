@@ -1,0 +1,40 @@
+{
+  "at": "2026-10-16T03:38:07.679Z",
+  "operation": "Spoofed external trigger header with matching valid envelope, no bearer authority",
+  "documentation": "https://neon.com/docs/compute/functions/triggers/overview",
+  "checks": [
+    {
+      "role": "agent",
+      "slug": "mendagent7",
+      "path": "/scheduled",
+      "status": 403,
+      "error": "invalid_trigger",
+      "expected": 403
+    },
+    {
+      "role": "refund",
+      "slug": "mendrefund11",
+      "path": "/scheduled",
+      "status": 403,
+      "error": "invalid_trigger",
+      "expected": 403
+    },
+    {
+      "role": "receipts",
+      "slug": "mendreceipts",
+      "path": "/scheduled",
+      "status": 403,
+      "error": "invalid_trigger",
+      "expected": 403
+    },
+    {
+      "role": "conversion",
+      "slug": "mendconversion6",
+      "path": "/scheduled",
+      "status": 403,
+      "error": "invalid_trigger",
+      "expected": 403
+    }
+  ],
+  "status": "PASS"
+}
