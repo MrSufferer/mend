@@ -8,6 +8,7 @@ export async function wallet(page:Page,index=0,chainId=5042002) {
     if(!account) throw new Error('Unknown synthetic signer');
     return account.signMessage({message:{raw:hexToBytes(message)}});
   });
+  await page.exposeFunction('signWalletTypedData',async(address:string,data:string)=>{const account=accounts.find(a=>a.address.toLowerCase()===address.toLowerCase());if(!account)throw new Error('Unknown synthetic signer');return account.signTypedData(JSON.parse(data));});
   await page.addInitScript(({addresses,index,chainId})=>{
     type Callback=(value:unknown)=>void;
     const listeners=new Map<string,Set<Callback>>();
@@ -20,6 +21,7 @@ export async function wallet(page:Page,index=0,chainId=5042002) {
       if(method==='wallet_switchEthereumChain'){chain=parseInt((params![0] as {chainId:string}).chainId,16);emit('chainChanged','0x'+chain.toString(16));return null;}
       if(method==='wallet_requestPermissions')return[{parentCapability:'eth_accounts'}];
       if(method==='wallet_getPermissions')return connected?[{parentCapability:'eth_accounts'}]:[];
+      if(method==='eth_signTypedData_v4'){if(reject){reject=false;throw Object.assign(new Error('User rejected signature'),{code:4001});}return (window as unknown as {signWalletTypedData:(a:string,d:string)=>Promise<string>}).signWalletTypedData(...params as [string,string]);}
       if(method==='personal_sign'){
         if(reject){reject=false;throw Object.assign(new Error('User rejected signature'),{code:4001});}
         const [message,address]=params as [string,string];

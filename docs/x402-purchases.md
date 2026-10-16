@@ -1,5 +1,7 @@
 # Purchase a document order
 
+For the inline browser flow and durable browser recovery, see [Purchase and retrieve a document](release-customer.md). The programmatic flow below remains supported.
+
 `npm run submit -- https://your-preview.example document.pdf private-state.json` creates a private unpaid order and saves its capability. With `MERCHANT_ADDRESS` set to the trusted public recipient and `TEST_PURCHASER_PRIVATE_KEY` loaded only in the purchaser process, run:
 
 ```sh

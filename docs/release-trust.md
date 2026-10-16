@@ -16,6 +16,8 @@ An upload expires seven days after upload; an output expires seven days after it
 
 Access cutoff and physical deletion are separate. Scheduled bounded sweeps delete expired bytes and verify absence; free-tier scheduling, cold starts, outages and storage uncertainty may delay deletion. A successful sweep can leave a backlog. Pending/failed deletion is observable and retried, without promising physical deletion at the exact deadline. A late recreated object is subject to another sweep. Content removal does not erase purchased obligations, immutable delivery history, policy, audit or receipt evidence. An expired previously delivered file is not a conversion failure or a new refund entitlement.
 
+The browser purchase journal stores the submission capability, order ID, payer identity and exact signed payment authorization in IndexedDB at the purchase origin. It does not store PDF bytes or a wallet private key. Browser origin access is part of the trust boundary: same-origin code and someone with access to the browser profile may access that material. Hiding another account's pending purchase is a UI privacy guard, not encryption. Sign-out removes active private query/download state while retaining recovery material for the original payer. Clearing site data can destroy unsettled recovery; authentication alone does not reconstruct it. See the [browser recovery contract](browser-purchase-recovery.md).
+
 ## Who can do what
 
 | Authority | Powers and limitations |
