@@ -4,12 +4,18 @@ import { registerResult, type RetainedResult, type Settlement } from './restorat
 
 export const csvIdentity = { service: 'json-to-csv', merchant: 'controlled-csv-merchant', network: 'controlled-ledger', amount: '1' };
 export function validCsv(result: string) { return result.length > 0 && result.endsWith('\r\n') && !result.includes('\0'); }
-function convert(rows: unknown): string {
+function validateRows(rows: unknown): asserts rows is Record<string, string | number | boolean | null>[] {
   if (!Array.isArray(rows) || !rows.length || rows.length > 100 || rows.some(row => !row || typeof row !== 'object' || Array.isArray(row))) throw new HttpError(422, 'Expected 1–100 flat JSON objects');
   const columns = Object.keys(rows[0]);
   if (!columns.length || columns.length > 32 || rows.some(row => Object.keys(row).some(key => !columns.includes(key)))) throw new HttpError(422, 'Inconsistent columns');
+  const values = [...columns, ...rows.flatMap(row => Object.values(row))];
+  if (values.some(value => (value != null && !['string', 'number', 'boolean'].includes(typeof value)) || String(value).includes('\0'))) throw new HttpError(422, 'Only scalar cells without NUL supported');
+  // Conservative input cap leaves room for CSV escaping, missing cells and line endings.
+  if (Buffer.byteLength(JSON.stringify(rows)) > 12_288) throw new HttpError(422, 'Input too large');
+}
+function convert(rows: Record<string, string | number | boolean | null>[]): string {
+  const columns = Object.keys(rows[0]);
   const cell = (value: unknown) => {
-    if (value != null && !['string', 'number', 'boolean'].includes(typeof value)) throw new HttpError(422, 'Only scalar cells supported');
     let output = value == null ? '' : String(value);
     if (/^[\s]*[=+\-@]/.test(output)) output = "'" + output;
     return /[",\r\n]/.test(output) ? `"${output.replaceAll('"', '""')}"` : output;
@@ -46,7 +52,7 @@ export async function startCsvProvider(config: { path: string; token: string; re
     const input = await body(req);
     if (path === '/requests') {
       const payer = wallet(input.wallet);
-      convert(input.rows); // Validate before allocating a durable request or accepting a receipt.
+      validateRows(input.rows); // Conversion runs only once, after confirmed controlled payment.
       const encoded = JSON.stringify(input.rows);
       const requestId = randomUUID();
       db.prepare('INSERT INTO requests (id, wallet, input, digest, created, retention) VALUES (?, ?, ?, ?, ?, ?)').run(requestId, payer, encoded, createHash('sha256').update(encoded).digest('hex'), Date.now(), config.retentionMs);
@@ -54,13 +60,17 @@ export async function startCsvProvider(config: { path: string; token: string; re
     } else if (path === '/test/receipts') {
       const requestId = text(input.requestId);
       const payer = wallet(input.wallet);
-      const row = db.prepare('SELECT wallet, digest, retention, created FROM requests WHERE id = ?').get(requestId);
-      if (!row || Number(row.created) + 86_400_000 <= Date.now() || row.wallet !== payer) throw new HttpError(409, 'Payer/request mismatch');
-      if (db.prepare('SELECT 1 FROM receipts WHERE request = ?').get(requestId)) throw new HttpError(409, 'Receipt already issued');
-      const receiptId = randomUUID();
-      const paidAt = Date.now();
-      const receipt: Settlement = { ...csvIdentity, receiptId, requestId, wallet: payer, paidAt, expiresAt: paidAt + Number(row.retention), inputDigest: String(row.digest), confirmed: true };
-      db.prepare('INSERT INTO receipts VALUES (?, ?, ?)').run(receiptId, requestId, JSON.stringify(receipt));
+      const receiptId = transaction(db, () => {
+        const row = db.prepare('SELECT wallet, digest, retention, created FROM requests WHERE id = ?').get(requestId);
+        if (!row || Number(row.created) + 86_400_000 <= Date.now() || row.wallet !== payer) throw new HttpError(409, 'Payer/request mismatch');
+        if (db.prepare('SELECT 1 FROM receipts WHERE request = ?').get(requestId)) throw new HttpError(409, 'Receipt already issued');
+        const receiptId = randomUUID();
+        const paidAt = Date.now();
+        const receipt: Settlement = { ...csvIdentity, receiptId, requestId, wallet: payer, paidAt, expiresAt: paidAt + Number(row.retention), inputDigest: String(row.digest), confirmed: true };
+        db.prepare('INSERT INTO receipts VALUES (?, ?, ?)').run(receiptId, requestId, JSON.stringify(receipt));
+        db.prepare('UPDATE requests SET receipt = ?, expires = ? WHERE id = ?').run(receiptId, receipt.expiresAt, requestId);
+        return receiptId;
+      });
       json(res, 201, { receiptId, evidence: 'controlled' });
     } else if (/^\/requests\/[^/]+\/purchase$/.test(path)) {
       const requestId = path.split('/')[2];

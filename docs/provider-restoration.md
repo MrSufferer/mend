@@ -44,7 +44,7 @@ Mend's surface:
 
 Wallet authorization supports EOA message signatures. The signed message contains audience, provider, request, wallet, nonce and expiry. No bearer order ID grants access. All results and errors use `private, no-store`; contents and signatures are not logged. Challenges are single-use, survive service restart until expiry, and have a global 10,000 outstanding cap. This is not a production rate limiter.
 
-The reference service accepts 1–100 flat JSON rows and at most 32 columns; CSV output is at most 32 KiB and JSON requests at most 64 KiB. Cells escape CSV quotes and prefix spreadsheet formula markers with an apostrophe. Missing cells become empty fields. The configured result validator requires nonempty CSV ending in CRLF without NUL. It is a declared structural check, not an independent proof that output is semantically correct for the input. The input hash and result digest bind the registered artifact to the purchased request.
+The reference service accepts at most 12 KiB of row input, with 1–100 flat JSON rows and at most 32 columns; CSV output is at most 32 KiB and JSON requests at most 64 KiB. Cells escape CSV quotes and prefix spreadsheet formula markers with an apostrophe. NUL characters in cells or headers are rejected before purchase. Missing cells become empty fields. The configured result validator requires nonempty CSV ending in CRLF without NUL. It is a declared structural check, not an independent proof that output is semantically correct for the input. The input hash and result digest bind the registered artifact to the purchased request.
 
 ## Durability and retention
 

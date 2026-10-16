@@ -150,7 +150,8 @@ test('registration rejects missing payment evidence, altered output and receipt/
   const { requestId } = await f.request();
   const { receiptId } = await f.receipt(requestId);
   assert.equal((await f.purchase(requestId, receiptId)).status, 200);
-  const record = { providerId: 'csv-reference', requestId, receiptId, inputDigest: 'a'.repeat(64), expiresAt: Date.now() + 30_000, result: 'name\r\nMallory\r\n' };
+  const receipt = await (await fetch(f.provider.origin + `/test/receipts/${receiptId}`, { headers: { authorization: `Bearer ${token}` } })).json();
+  const record = { providerId: 'csv-reference', requestId, receiptId, inputDigest: receipt.inputDigest, expiresAt: receipt.expiresAt, result: 'name\r\nMallory\r\n' };
   assert.equal((await post(f.mend.origin, '/registrations', record, token)).status, 409);
   assert.equal((await post(f.mend.origin, '/registrations', { ...record, requestId: 'another-request' }, token)).status, 409);
   assert.equal((await post(f.mend.origin, '/registrations', { ...record, receiptId: 'unverified-receipt' }, token)).status, 409);
@@ -188,4 +189,22 @@ test('an expired wallet challenge is unusable even with a valid signature', asyn
   const signature = await account.signMessage({ message: challenge.message });
   t.mock.timers.enable({ apis: ['Date'], now: Date.now() + 61_000 });
   assert.equal((await post(f.mend.origin, '/recover', { nonce: challenge.nonce, signature })).status, 401);
+});
+
+test('unsupported NUL cells and column names are rejected before a request or receipt is allocated', async (t) => {
+  const f = await fixture(t);
+  for (const rows of [[{ name: '\0' }], [{ ['bad\0column']: 'value' }]]) {
+    assert.equal((await post(f.provider.origin, '/requests', { wallet: account.address, rows }, token)).status, 422);
+  }
+});
+
+test('payment issued near the draft cutoff preserves purchased input until the receipt expiry', async (t) => {
+  const f = await fixture(t);
+  const started = Date.now();
+  const { requestId } = await f.request();
+  t.mock.timers.enable({ apis: ['Date'], now: started + 86_400_000 - 30_000 });
+  const { receiptId } = await f.receipt(requestId);
+  t.mock.timers.setTime(started + 86_400_000 + 1000);
+  assert.equal((await f.purchase(requestId, receiptId)).status, 200);
+  assert.equal((await f.recovery(requestId)).response.status, 200);
 });
