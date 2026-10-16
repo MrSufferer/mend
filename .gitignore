@@ -31,3 +31,9 @@ node_modules
 .refund-build/
 
 .agent-logs/
+
+# Private standalone provider reference state (wallet keys, receipts, results).
+.provider-state/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
