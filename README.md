@@ -3,7 +3,8 @@
 Mend converts a paid text PDF into private plain text, tracks interrupted execution, and recovers from durable evidence. Purchases use x402 on Arc testnet; the recovery desk uses paying-wallet SIWE authentication. All amounts are **test USDC**.
 
 - [Release setup, deployment inputs and remaining acceptance gates](docs/release.md)
-- [Programmatic purchase and private tracking](docs/release-customer.md)
+- [Browser purchase, durable recovery and private tracking](docs/release-customer.md)
+- [Programmatic x402 purchase](docs/x402-purchases.md)
 - [Labeled recovery demonstrations and evidence](docs/release-demonstrations.md)
 - [Provider exposure, retention and authority](docs/release-trust.md)
 - [Licensing and dependency inventory](docs/release-licenses.md)

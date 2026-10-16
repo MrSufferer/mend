@@ -8,7 +8,7 @@ The immediate goal is the fastest publicly deployed, working product on Arc test
 
 ## Solution
 
-Mend operates one built-in merchant selling asynchronous PDF-to-text conversion for 1 test USDC per order. A runnable programmatic client purchases jobs through x402. Customers use wallet-authenticated browser pages to track orders and download results; the merchant uses a private operational dashboard.
+Mend operates one built-in merchant selling asynchronous PDF-to-text conversion for 1 test USDC per order. A runnable programmatic client and an inline browser checkout purchase jobs through x402. Customers use wallet-authenticated browser pages to buy conversions, track orders and download results; the merchant uses a private operational dashboard.
 
 A tool-using LLM agent investigates unresolved paid orders and chooses permitted actions: restore existing results, monitor running work, retry safely, request a refund, or pause sales. Deterministic handlers and a separately funded refund-reserve contract enforce its authority. The agent verifies outcomes and records supporting evidence.
 
@@ -64,7 +64,7 @@ The first release demonstrates actual PDF processing and Arc testnet payments an
 ## Implementation Decisions
 
 - Build one merchant and one supported service. Accept text-based PDFs up to 10 MB and 50 pages. Reject scanned, encrypted, invalid, and over-limit documents before payment. Produce downloadable plain text through local processing; external processing providers are not required.
-- Use Arc testnet and real test USDC settlement. A working programmatic x402 client is mandatory; browser x402 checkout is not a first-release requirement.
+- Use Arc testnet and real test USDC settlement. Preserve the working programmatic x402 client and provide browser checkout under the approved [inline checkout extension](https://github.com/MrSufferer/mend/issues/33).
 - Attempt x402 v2 exact settlement through Arcus first. Its live supported-networks response advertised Arc testnet during discovery, but successful settlement has not been tested. Gate integration on an actual testnet payment. Investigate self-hosted settlement using the official x402 implementation if necessary.
 - Settle directly from the payer to the merchant. This replaces the earlier proposal for a custom purchase contract. Retain a separate refund-reserve contract.
 - Persist the order before settlement and bind verified payment evidence to that order. Start processing only after confirmed settlement. Recover through ambiguous settlement responses without initiating another charge blindly.
@@ -115,7 +115,6 @@ The first release demonstrates actual PDF processing and Arc testnet payments an
 
 - Beta recruitment, market validation, paid pilots, and production-money operation.
 - Multiple merchants, merchant signup, subscription billing, and generic integration marketplaces.
-- Browser-based x402 checkout as a shipping requirement.
 - OCR, encrypted PDFs, AI summaries, additional document formats, external processing providers, and replacement-provider procurement.
 - Partial refunds, gas reimbursement, cross-chain payment or refund flows, and unrestricted agent financial authority.
 - Custom domains, email notifications, submission videos, and mandatory hackathon publishing assets beyond the working product.
@@ -175,3 +174,14 @@ The user resumed implementation for GitHub ticket #2 and then the next ticket in
 ## Implementation authorization — 2026-10-14
 
 The user authorized continuing all remaining approved tickets #4–#18 until complete. This supersedes the earlier two-ticket scope; historical implementation evidence remains limited to the slices actually verified. The approved design, authority boundaries, and testing seams remain the baseline.
+
+
+## Approved browser checkout extension — 2026-10-16
+
+[Implement approved inline browser checkout and durable purchase recovery](https://github.com/MrSufferer/mend/issues/33) extends the original release scope. Use A — Inline checkout above the existing customer workspace on `/` and `/orders`; retain the Recovery desk, queue/details, programmatic client, unpaid-order claims and all recovery authority limits. The approved prototype is a visual reference, not production implementation.
+
+A customer can choose a real text PDF or the supplied real sample, read provider disclosures before upload, review the immutable server policy snapshot, connect an injected EOA wallet, sign in separately, approve exactly 1 test USDC on Arc testnet, track the order and download verified text. Content validation happens before payment and rejects unsupported/encrypted/scanned/over-limit documents while allowing blank pages in supported text documents.
+
+Persist the original capability and exact signed authorization before transmission. Reauthentication, reload, response loss and replay reconcile the same attempt without another authorization, transfer or execution. Required storage failure blocks submission. Confirmed original-payer SIWE lookup recovers ownership after storage loss or on another device; it cannot prove every unsettled authorization. Document that limitation and offer no blind replacement payment. Signing out or changing accounts immediately removes private filenames/details, queries and pending downloads from view. Browser custody/recovery tradeoffs must be recorded before payment integration.
+
+Automated integration/browser checks and independent standards/spec review accompany implementation. Human-only QA stays in [Human-only QA: verify the core customer and operator flows](https://github.com/MrSufferer/mend/issues/32), unexecuted until a verified deployment containing this checkout is supplied. Earlier deployment evidence does not establish checkout availability.
