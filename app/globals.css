@@ -73,3 +73,26 @@
 .health-components { list-style: none; padding: 0; margin: 16px 0; }
 .health-components li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .health-components span { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
+.purchase { display:grid; grid-template-columns:minmax(220px, 0.8fr) minmax(0, 1.7fr); margin-bottom:24px; overflow:hidden; }
+.purchase-guide { padding:32px; background:var(--muted); border-right:1px solid var(--border); }
+.purchase-guide h2 { max-width:18ch; margin:12px 0; font-size:26px; line-height:1.2; }
+.purchase-guide ol { padding-left:20px; margin-top:28px; }
+.purchase-guide li { margin:16px 0; }
+.purchase-price { font-size:36px; margin-top:28px; }
+.purchase-price span { font-size:16px; }
+.purchase-task { padding:28px; min-width:0; }
+.purchase-task > * + * { margin-top:16px; }
+.purchase-task h3 { font-size:14px; margin-top:20px; }
+.purchase-file { display:block; font-weight:500; }
+.purchase-file input { display:block; width:100%; margin-top:8px; min-height:44px; padding:8px; border:1px solid var(--border); border-radius:6px; }
+.purchase-terms { max-height:300px; overflow:auto; padding:16px; background:var(--muted); border:1px solid var(--border); border-radius:6px; }
+.purchase-terms summary { font-weight:500; cursor:pointer; min-height:24px; }
+.purchase-terms p { margin-top:12px; }
+.purchase-consent { display:flex; align-items:center; gap:12px; min-height:44px; }
+.purchase-consent input { width:20px; height:20px; flex-shrink:0; }
+.purchase-filename { overflow-wrap:anywhere; font-weight:500; }
+.purchase-task select { display:block; width:100%; margin-top:8px; min-height:44px; }
+@media(max-width:700px){.purchase{grid-template-columns:1fr}.purchase-guide{border-right:0;border-bottom:1px solid var(--border);padding:24px}.purchase-guide h2{max-width:none}.purchase-guide ol{margin-top:16px}.purchase-task{padding:20px}.purchase-price{margin-top:16px}}
+.purchase-payment-review .mono { overflow-wrap:anywhere; }
+.purchase-payment-review p { margin-top:8px; }

@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import Purchase from './purchase';
 import ServiceIncidents from './service-incidents';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -50,6 +51,7 @@ export default function Live({operator=false}:{operator?:boolean}) {
     </header>
     <main id="main" className="main" tabIndex={-1}>
       <div className="page-heading"><div><p className="eyebrow">{operator?'OPERATOR WORKSPACE':'CUSTOMER WORKSPACE'}</p><h1>{operator?'Recovery desk':'My orders'}</h1><p>{operator?'Unresolved paid orders and their delivery or refund obligations.':'Your private documents, purchased terms, and order status.'}</p></div><span className="badge">Testnet · test USDC</span></div>
+      {!operator?<Purchase/>:null}
       <section className="panel access-panel" aria-labelledby="access-heading"><div><h2 id="access-heading">{wallet.authenticated?'Authenticated':'Wallet access'}</h2><p>{!wallet.ready?'Checking your session…':wallet.authenticated?'Your signature verified this wallet. Private access ends when the session expires.':wallet.connected?'Wallet connected. Sign in to access private orders.':'Connect an injected EOA wallet, then sign a message to verify ownership.'}</p>{wallet.connected && !wallet.authenticated && wallet.chainId!==arc.id?<p className="access-warning">Wrong network. Switch to Arc testnet before signing in.</p>:null}{wallet.message?<p role="status" className="access-warning">{wallet.message}</p>:null}</div><div className="access-actions">
         {!wallet.connected?<button className="primary" disabled={wallet.busy} aria-busy={wallet.busy} onClick={()=>void wallet.connect()}>{wallet.busy?'Connecting…':'Connect wallet'}</button>:!wallet.authenticated?<>{wallet.chainId!==arc.id?<button className="primary" disabled={wallet.busy} onClick={()=>void wallet.switchNetwork()}>Switch to Arc testnet</button>:<button className="primary" disabled={wallet.busy||!wallet.ready} aria-busy={wallet.busy} onClick={()=>void wallet.signIn()}>{wallet.busy?'Waiting for signature…':'Sign in'}</button>}<button className="secondary" disabled={wallet.busy} onClick={()=>void wallet.signOut()}>Disconnect</button></>:<span className="caption">Connection alone grants no private access.</span>}
       </div></section>

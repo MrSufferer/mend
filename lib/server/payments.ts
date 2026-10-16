@@ -8,6 +8,7 @@ import {orders,paymentAttempts,type PaymentAttempt} from './schema';
 import {presentOrder} from './orders';
 import {ApiError,capabilityHash,json} from './http';
 import {startConversion} from './conversion';
+import {applicationOrigin} from './auth';
 export const arcUsdc='0x3600000000000000000000000000000000000000';
 function rpcClient() {if(!process.env.ARC_RPC_URL)throw new Error('Server RPC required');return createPublicClient({transport:http(process.env.ARC_RPC_URL,{timeout:10000})});}
 export function paymentRequirements():PaymentRequirements {
@@ -22,7 +23,7 @@ export async function purchase(request:Request,id:string) {
  const signature=request.headers.get('PAYMENT-SIGNATURE');
  if(!attempt&&!signature) {
   if(order.uploadExpiresAt.getTime()<=Date.now())throw new ApiError(409,'upload_expired','The document expired before payment. Submit it again.');
-  const required={x402Version:2,resource:{url:new URL(request.url).href,description:'Mend document order: 1 test USDC',mimeType:'application/json'},accepts:[paymentRequirements()]};
+  const required={x402Version:2,resource:{url:new URL(`/api/orders/${id}/payment`,applicationOrigin()).href,description:'Mend document order: 1 test USDC',mimeType:'application/json'},accepts:[paymentRequirements()]};
   const response=json(required,402);response.headers.set('PAYMENT-REQUIRED',Buffer.from(JSON.stringify(required)).toString('base64'));return response;
  }
  if(signature) {
