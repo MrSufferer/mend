@@ -76,7 +76,7 @@
 
 .purchase { display:grid; grid-template-columns:minmax(220px, 0.8fr) minmax(0, 1.7fr); margin-bottom:24px; overflow:hidden; }
 .purchase-guide { padding:32px; background:var(--muted); border-right:1px solid var(--border); }
-.purchase-guide h2 { max-width:18ch; margin:12px 0; font-size:26px; line-height:1.2; }
+.purchase-guide h2 { max-width:18ch; margin:12px 0; font-size:20px; line-height:1.2; }
 .purchase-guide ol { padding-left:20px; margin-top:28px; }
 .purchase-guide li { margin:16px 0; }
 .purchase-price { font-size:36px; margin-top:28px; }
