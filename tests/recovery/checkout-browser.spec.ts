@@ -6,7 +6,7 @@ test.beforeAll(async()=>{h=await lifecycle();});
 test.afterAll(async()=>{await h?.close();});
 test.beforeEach(async()=>{await h.reset();});
 test('browser sample purchase validates a real PDF before requesting payment and preserves its authorization on reload',async({page})=>{
- await wallet(page);await page.goto(h.origin);
+ await wallet(page);await page.goto(h.origin+'/convert');
  const sampleResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/mend-sample.pdf');
  await page.getByRole('button',{name:'Use sample PDF',exact:true}).click();
  expect((await sampleResponse).ok()).toBe(true);

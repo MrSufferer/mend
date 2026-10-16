@@ -31,7 +31,7 @@ async function wallet(page:Page,index=0,chainId=5042002) {
     Object.assign(window,{ethereum:provider,__wallet:{get waiting(){return !!release;},switch(index:number){selected=index;emit('accountsChanged',[addresses[selected]]);},reject(){reject=true;},hold(){hold=true;},release(){hold=false;release?.();release=undefined;},chain(id:number){chain=id;emit('chainChanged','0x'+id.toString(16));}}});
   },{addresses:accounts.map(a=>a.address),index,chainId});
 }
-async function connect(page:Page) {await page.goto('/');await page.getByRole('button',{name:'Connect wallet',exact:true}).click();await expect(page.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();}
+async function connect(page:Page) {await page.goto('/orders');await page.getByRole('button',{name:'Connect wallet',exact:true}).click();await expect(page.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();}
 test('connection and actual EOA sign-in are separate; customer cannot enter operator desk',async({page})=>{
   await wallet(page);await connect(page);
   await expect(page.getByText('Wallet connected. Sign in to access private orders.',{exact:true})).toBeVisible();
@@ -72,7 +72,7 @@ test('rejected signatures remain signed out and retry with a fresh real signatur
   await signInBrowser(page);
 });
 test('wrong network blocks sign-in; switching to Arc permits a real signature',async({page})=>{
-  await wallet(page,0,1);await page.goto('/');await page.getByRole('button',{name:'Connect wallet',exact:true}).click();
+  await wallet(page,0,1);await page.goto('/orders');await page.getByRole('button',{name:'Connect wallet',exact:true}).click();
   await expect(page.getByText('Wrong network. Switch to Arc testnet before signing in.')).toBeVisible();await expect(page.getByRole('button',{name:'Sign in',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Switch to Arc testnet',exact:true}).click();await signInBrowser(page);
   await control(page,'chain',1);await expect(page.getByText('Authenticated',{exact:true})).toHaveCount(0);
@@ -80,7 +80,7 @@ test('wrong network blocks sign-in; switching to Arc permits a real signature',a
 });
 test('account switching hides claimed private data and revokes the previous cookie before the new wallet signs in',async({page})=>{
   await wallet(page);await connect(page);const draft=await browserDraft(page);await signInBrowser(page);
-  await page.getByLabel('Order ID',{exact:true}).fill(draft.id);await page.getByLabel('Private order capability',{exact:true}).fill(draft.capability);await page.getByRole('button',{name:'Claim order',exact:true}).click();
+  await page.getByText('Claim an unpaid API order',{exact:true}).click();await page.getByLabel('Order ID',{exact:true}).fill(draft.id);await page.getByLabel('Private order capability',{exact:true}).fill(draft.capability);await page.getByRole('button',{name:'Claim order',exact:true}).click();
   await expect(page.getByText(draft.id,{exact:true})).toBeVisible();
   await control(page,'switch',1);
   await expect(page.getByText(draft.id,{exact:true})).toHaveCount(0);await expect(page.getByText('Authenticated',{exact:true})).toHaveCount(0);
@@ -103,7 +103,7 @@ test('the configured operator signs in to a genuine empty Recovery desk',async({
   expect((await page.request.get('/api/operator/orders')).status()).toBe(200);
 });
 test('narrow layouts and keyboard sign-in remain usable without horizontal overflow',async({page})=>{
-  await wallet(page);await page.setViewportSize({width:375,height:812});await page.goto('/');
+  await wallet(page);await page.setViewportSize({width:375,height:812});await page.goto('/orders');
   await page.getByRole('button',{name:'Connect wallet',exact:true}).focus();await page.keyboard.press('Enter');
   const sign=page.getByRole('button',{name:'Sign in',exact:true});await expect(sign).toBeEnabled();await sign.focus();
   expect(await sign.evaluate(element=>getComputedStyle(element).outlineStyle)).not.toBe('none');await page.keyboard.press('Enter');
@@ -135,7 +135,7 @@ test('a wallet prompt returning focus does not cancel the current account signat
 });
 test('an in-flight private download cannot open after the connected wallet changes',async({page})=>{
   await wallet(page);await connect(page);const draft=await browserDraft(page);await signInBrowser(page);
-  await page.getByLabel('Order ID',{exact:true}).fill(draft.id);await page.getByLabel('Private order capability',{exact:true}).fill(draft.capability);await page.getByRole('button',{name:'Claim order',exact:true}).click();
+  await page.getByText('Claim an unpaid API order',{exact:true}).click();await page.getByLabel('Order ID',{exact:true}).fill(draft.id);await page.getByLabel('Private order capability',{exact:true}).fill(draft.capability);await page.getByRole('button',{name:'Claim order',exact:true}).click();
   await expect(page.getByText(draft.id,{exact:true})).toBeVisible();
   let release!:()=>void,received!:()=>void;
   const gated=new Promise<void>(resolve=>{release=resolve;}),ready=new Promise<void>(resolve=>{received=resolve;});
@@ -143,6 +143,7 @@ test('an in-flight private download cannot open after the connected wallet chang
   await page.route('**/api/orders/*/upload',async route=>{const response=await route.fetch();grantUrl=(await response.json()).url;received();await gated;await route.fulfill({response});});
   // Track the issued private grant, independent of deployment/proxy origin or asset requests.
   let privateDownload=false;page.on('request',request=>{if(grantUrl && request.url()===grantUrl)privateDownload=true;});
+  await page.getByText('Private upload and retention',{exact:true}).click();
   await page.getByRole('button',{name:'Download upload',exact:true}).click();await ready;await control(page,'switch',1);
   await expect(page.getByText('Authenticated',{exact:true})).toHaveCount(0);
   const completed=page.waitForResponse(response=>response.url().endsWith(`/api/orders/${draft.id}/upload`));release();await completed;

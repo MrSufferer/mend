@@ -18,7 +18,7 @@ async function activateWithKeyboard(page:Page,name:string){
 async function connect(page:Page){
  await wallet(page);await page.setViewportSize({width:375,height:812});
  const hydrated=page.waitForResponse(response=>response.url()===h.origin+'/api/auth/session');
- await page.goto(h.origin);await hydrated;
+ await page.goto(h.origin+'/orders');await hydrated;
  await activateWithKeyboard(page,'Connect wallet');
  await expect(page.getByRole('button',{name:'Sign in',exact:true})).toBeVisible();
 }
@@ -40,7 +40,10 @@ test('narrow keyboard flow shows durable uncertainty and a customer-safe timelin
  await connect(page);
  expect((await page.request.get(h.origin+'/api/orders/'+purchase.id)).status()).toBe(401);
  await signIn(page);await expect(page.getByText(purchase.id,{exact:true})).toBeVisible();
+ await page.getByText('Order history',{exact:true}).click();
  await expect(page.getByRole('heading',{name:'Order timeline',exact:true})).toBeVisible();
+ await page.locator('summary').filter({hasText:/^Conversion attempts$/}).click();
+ await page.getByText('Refund details',{exact:true}).click();
  await expect(page.getByText('Whole execution has no confirmed stop.',{exact:false})).toBeVisible();
  await expect(page.getByText('Funds have no confirmed return receipt.',{exact:false})).toBeVisible();
  await expect(page.getByRole('button',{name:'Download text result',exact:true})).toHaveCount(0);
@@ -58,6 +61,9 @@ test('restored private result downloads from the keyboard and disappears on wall
  expect((await h.call('conversion','/experiment',{orderId:purchase.id,mode:'publication'})).status).toBe(200);
  await h.restart('conversion');await h.call('conversion','/reconcile',{orderId:purchase.id});
  await connect(page);await signIn(page);await expect(page.getByText(purchase.id,{exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Result available',exact:true})).toBeVisible();
+ await expect(page.getByText('No refund action needed.',{exact:false})).toHaveCount(0);
+ await expect(page.getByText('Funds have no confirmed return receipt.',{exact:false})).not.toBeVisible();
  const downloaded=page.waitForEvent('download');await activateWithKeyboard(page,'Download text result');
  const file=await downloaded;expect(await file.failure()).toBeNull();expect(file.suggestedFilename()).toMatch(/\.txt$/);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
