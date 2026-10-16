@@ -208,3 +208,12 @@ test('payment issued near the draft cutoff preserves purchased input until the r
   assert.equal((await f.purchase(requestId, receiptId)).status, 200);
   assert.equal((await f.recovery(requestId)).response.status, 200);
 });
+
+test('missing cells remain empty even when a column name exists on Object.prototype', async (t) => {
+  const f = await fixture(t);
+  const { requestId } = await f.request([{ constructor: 'hello', toString: 'there' }, {}]);
+  const { receiptId } = await f.receipt(requestId);
+  const response = await f.purchase(requestId, receiptId);
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), 'constructor,toString\r\nhello,there\r\n,\r\n');
+});

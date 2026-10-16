@@ -20,7 +20,7 @@ function convert(rows: Record<string, string | number | boolean | null>[]): stri
     if (/^[\s]*[=+\-@]/.test(output)) output = "'" + output;
     return /[",\r\n]/.test(output) ? `"${output.replaceAll('"', '""')}"` : output;
   };
-  const result = [columns.map(cell).join(','), ...rows.map(row => columns.map(key => cell(row[key])).join(','))].join('\r\n') + '\r\n';
+  const result = [columns.map(cell).join(','), ...rows.map(row => columns.map(key => cell(Object.hasOwn(row, key) ? row[key] : null)).join(','))].join('\r\n') + '\r\n';
   if (Buffer.byteLength(result) > 32_768) throw new HttpError(422, 'Result too large');
   return result;
 }
