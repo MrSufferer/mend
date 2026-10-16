@@ -17,6 +17,7 @@ async function authenticate(page:Page){
 async function validatedSample(page:Page){
  await wallet(page);await page.goto(h.origin);await authenticate(page);
  await page.getByRole('button',{name:'Use sample PDF',exact:true}).click();
+ await expect(page.getByText('mend-sample.pdf',{exact:true})).toBeVisible();
  await page.getByLabel('I accept the disclosed purchase terms').check();
  await page.getByRole('button',{name:'Upload and validate PDF',exact:true}).click();
  await expect(page.getByRole('button',{name:'Review payment in wallet',exact:true})).toBeEnabled();
@@ -70,6 +71,7 @@ test('unavailable durable storage blocks upload and leaves no accepted order or 
  await wallet(page);await page.addInitScript(()=>{indexedDB.open=()=>{throw new Error('Synthetic storage unavailable');};});
  await page.goto(h.origin);await authenticate(page);
  await page.getByRole('button',{name:'Use sample PDF',exact:true}).click();
+ await expect(page.getByText('mend-sample.pdf',{exact:true})).toBeVisible();
  await page.getByLabel('I accept the disclosed purchase terms').check();
  await expect(page.getByText('Safe private browser storage and cross-tab coordination are required before upload or payment.',{exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Upload and validate PDF',exact:true})).toHaveCount(0);
@@ -136,6 +138,7 @@ test('a stale second tab reuses the first tab authorization without another wall
  await expect(other.getByRole('button',{name:'Sign in',exact:true})).toBeEnabled();
  await page.bringToFront();await authenticate(page);
  await page.getByRole('button',{name:'Use sample PDF',exact:true}).click();
+ await expect(page.getByText('mend-sample.pdf',{exact:true})).toBeVisible();
  await page.getByLabel('I accept the disclosed purchase terms').check();
  await page.getByRole('button',{name:'Upload and validate PDF',exact:true}).click();
  await expect(page.getByRole('button',{name:'Review payment in wallet',exact:true})).toBeEnabled();
