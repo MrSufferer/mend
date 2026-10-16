@@ -1,0 +1,45 @@
+{
+  "at": "2026-10-15T18:47:58.655478+00:00",
+  "functions": [
+    {
+      "role": "conversion",
+      "slug": "mendconversion6",
+      "currentDeploymentId": 23,
+      "activeDeploymentId": 23,
+      "status": "completed",
+      "carryForward": false
+    },
+    {
+      "role": "registrar",
+      "slug": "mendregistrar11",
+      "currentDeploymentId": 8,
+      "activeDeploymentId": 8,
+      "status": "completed",
+      "carryForward": false
+    },
+    {
+      "role": "agent",
+      "slug": "mendagent7",
+      "currentDeploymentId": 9,
+      "activeDeploymentId": 9,
+      "status": "completed",
+      "carryForward": false
+    },
+    {
+      "role": "receipts",
+      "slug": "mendreceipts",
+      "currentDeploymentId": 5,
+      "activeDeploymentId": 5,
+      "status": "completed",
+      "carryForward": true
+    },
+    {
+      "role": "refund",
+      "slug": "mendrefund11",
+      "currentDeploymentId": 4,
+      "activeDeploymentId": 4,
+      "status": "completed",
+      "carryForward": true
+    }
+  ]
+}

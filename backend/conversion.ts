@@ -89,7 +89,7 @@ async function recoveryCommand(invocationId:string,path:string) {
  return Response.json({verified:false,reason:'no_prepared_candidate'});
 }
 async function operatorCommand(request:Request) {
- if(!allowed(request,'OPERATOR_CONVERSION_SECRET'))return Response.json({error:'unauthorized'},{status:401});
+ if(!allowed(request,'OPERATOR_CONVERSION_SECRET')&&!(request.method==='POST'&&allowed(request,'WEB_OPERATOR_CONVERSION_SECRET')))return Response.json({error:'unauthorized'},{status:401});
  const body=await request.json();
  if(request.method!=='POST'||Object.keys(body).join(',')!=='requestId'||! /^[0-9a-f-]{36}$/.test(body.requestId))return Response.json({error:'invalid_request'},{status:400});
  let evidence:Record<string,unknown>={reason:'action_outcome_unknown'},outcome='uncertain',dispatched=false;
@@ -249,7 +249,7 @@ export default {async fetch(request:Request) {
  if(path==='/registrar/check')return registrarCheck(request);
  if(path==='/operator'){try{return await operatorCommand(request);}catch{return Response.json({error:'operator_unavailable'},{status:503});}}
  if(path.startsWith('/agent/')){try{return await agentCommand(request,path);}catch{return Response.json({error:'investigation_unavailable'},{status:503});}}
- if(!allowed(request))return Response.json({error:'unauthorized'},{status:401});
+ if(!allowed(request)&&!(request.method==='POST'&&path==='/'&&allowed(request,'WEB_CONVERSION_SECRET')))return Response.json({error:'unauthorized'},{status:401});
  try {
   if(request.method==='GET'&&path==='/status'){const id=url.searchParams.get('orderId')||'';if(!/^[0-9a-f-]{36}$/.test(id))return Response.json({error:'invalid_order'},{status:400});const result=await observation(id);return Response.json(result??{error:'not_found'},{status:result?200:404});}
   if(request.method==='GET'&&path==='/sweeps')return Response.json(await database().select().from(reconciliationSweeps).orderBy(sql`${reconciliationSweeps.startedAt} DESC`).limit(5));
@@ -258,7 +258,7 @@ export default {async fetch(request:Request) {
    const identity=await database().execute(sql`SELECT current_user AS role, has_table_privilege(current_user,'public.auth_sessions','SELECT') AS session_access, has_column_privilege(current_user,'public.orders','paid_at','UPDATE') AS payment_write`);
    return Response.json({identity:identity.rows[0],signingCredentialsAbsent:!Object.keys(process.env).some(name=>/PRIVATE_KEY|OPENROUTER|SESSION_SECRET/.test(name))});
   }
-  const body=await request.json();if(!/^[0-9a-f-]{36}$/.test(body.orderId))return Response.json({error:'invalid_order'},{status:400});
+  const body=await request.json();if(path==='/'&&allowed(request,'WEB_CONVERSION_SECRET')&&(!body||typeof body!=='object'||Array.isArray(body)||Object.keys(body).join()!=='orderId'))return Response.json({error:'invalid_order'},{status:400});if(!/^[0-9a-f-]{36}$/.test(body.orderId))return Response.json({error:'invalid_order'},{status:400});
   if(path==='/retention'&&Object.keys(body).join(',')==='orderId')return Response.json(await cleanupContent());
   if(path==='/stop'){await database().execute(sql`SELECT public.mend_request_stop(${body.orderId}::uuid)`);return Response.json({status:'stop_requested'});}
   if(path==='/reconcile')return Response.json(await reconcile(body.orderId));

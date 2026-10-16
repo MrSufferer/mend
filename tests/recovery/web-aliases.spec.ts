@@ -1,0 +1,63 @@
+import {randomUUID} from 'node:crypto';
+import {test,expect} from '@playwright/test';
+import {lifecycle,type Lifecycle} from './harness';
+let h:Lifecycle;
+const alias='d'.repeat(64);
+test.beforeAll(async()=>{h=await lifecycle();});
+test.afterAll(async()=>{await h?.close();});
+test.beforeEach(async()=>{await h.reset();});
+test('web investigation alias rejects invented operator request before model dispatch and admits a current authenticated operator request',async({playwright})=>{
+ await h.restart('agent',{WEB_OPERATOR_AGENT_SECRET:alias});
+ const order=await h.seed({stopped:true});
+ const invalid=await fetch(h.services.agent.url+'/investigate',{method:'POST',headers:{Authorization:'Bearer '+alias},body:JSON.stringify({orderId:order.id,requestId:randomUUID()})});
+ expect(invalid.status).toBe(503);expect((await h.state()).modelCalls).toBe(0);
+ await h.restartWeb({RECOVERY_AGENT_SECRET:alias});
+ const request=await playwright.request.newContext({baseURL:h.origin});await h.signIn(request);
+ const response=await request.post(`/api/operator/orders/${order.id}/investigate`,{headers:{Origin:h.origin},data:{}});
+ expect(response.status()).toBe(200);
+ expect((await h.state()).modelCalls).toBe(1);
+ expect((await h.state()).charges).toHaveLength(0);expect((await h.state()).refunds).toHaveLength(0);
+ await request.dispose();
+});
+test('web conversion alias delivers a paid PDF while operator alias retains durable dispatch authority',async({playwright})=>{
+ const conversionAlias='e'.repeat(64),operatorAlias='f'.repeat(64);
+ await h.restart('conversion',{WEB_CONVERSION_SECRET:conversionAlias,WEB_OPERATOR_CONVERSION_SECRET:operatorAlias});
+ await h.restartWeb({CONVERSION_SERVICE_SECRET:conversionAlias,OPERATOR_CONVERSION_SECRET:operatorAlias});
+ const purchase=await h.draft(playwright);expect((await purchase.pay()).status()).toBe(200);
+ await expect.poll(async()=>((await purchase.request.get(`/api/orders/${purchase.id}`)).json()).then(order=>order.result.available)).toBe(true);
+ expect((await purchase.request.get(`/api/orders/${purchase.id}/result`)).status()).toBe(200);
+ const check=await purchase.request.post(`/api/operator/orders/${purchase.id}/actions`,{headers:{Origin:h.origin},data:{action:'check'}});expect(check.status()).toBe(200);
+ expect((await h.state()).charges).toHaveLength(1);expect((await h.state()).refunds).toHaveLength(0);
+ await purchase.request.dispose();
+});
+test('web registrar alias still derives entitlement from a current operator request',async({playwright})=>{
+ await h.restart('registrar',{WEB_OPERATOR_REGISTRAR_SECRET:alias});
+ const order=await h.seed({stopped:true});
+ const invented=await fetch(h.services.registrar.url+'/operator',{method:'POST',headers:{Authorization:'Bearer '+alias},body:JSON.stringify({requestId:randomUUID()})});
+ expect(invented.status).toBe(503);expect((await h.state()).registrations).toHaveLength(0);
+ await h.restartWeb({OPERATOR_REGISTRAR_SECRET:alias});
+ const request=await playwright.request.newContext({baseURL:h.origin});await h.signIn(request);
+ const response=await request.post(`/api/operator/orders/${order.id}/actions`,{headers:{Origin:h.origin},data:{action:'refund'}});
+ expect(response.status()).toBe(200);const result=await response.json();
+ expect(result.operatorRequest).toMatchObject({outcome:'skipped',outcomeEvidence:{status:'unresolved',reason:'payment_unknown'}});
+ expect((await h.state()).registrations).toHaveLength(0);
+ expect((await h.state()).refunds).toHaveLength(0);expect((await h.state()).charges).toHaveLength(0);
+ await request.dispose();
+});
+test('two canonical fixture failures allow agent-requested pause below deterministic threshold',async({playwright})=>{
+ const first=await h.seed({stopped:true,confirmedParserFailure:true}),second=await h.seed({stopped:true,confirmedParserFailure:true});
+ for(const order of [first,second]){
+  const result=await h.role('database-conversion')`SELECT mend_fail_execution(${order.attempt}::uuid,'absent','pdf_conversion_failed') AS value`;
+  expect(result[0].value).toMatchObject({recorded:true,paused:false});
+ }
+ const request=await playwright.request.newContext({baseURL:h.origin});await h.signIn(request);
+ expect((await(await request.get('/api/operator/service')).json()).availability.paused).toBe(false);
+ await h.control({modelTool:'request_pause'});
+ const response=await h.call('agent','/investigate',{orderId:first.id});expect(response.status).toBe(200);
+ const result=await response.json();
+ expect(result.actions).toEqual(expect.arrayContaining([expect.objectContaining({tool:'request_pause',evidence:expect.objectContaining({paused:true})})]));
+ expect(result.case.callsUsed).toBe(2);
+ expect((await(await request.get('/api/operator/service')).json()).availability).toMatchObject({paused:true,failureGeneration:2});
+ expect((await h.state()).charges).toHaveLength(0);expect((await h.state()).refunds).toHaveLength(0);
+ await request.dispose();
+});

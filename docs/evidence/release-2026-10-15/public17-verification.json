@@ -1,0 +1,91 @@
+{
+  "sha": "96e05307dc6dcfa469eae69d1f95b043fdd42a6a",
+  "origin": "https://mend-3hvszzylk-gadillacers-projects.vercel.app",
+  "deployment": "dpl_Agt3HdySS2828i31Mfv6rpbw31RQ",
+  "at": "2026-10-15T18:46:23.953Z",
+  "public": [
+    {
+      "path": "/",
+      "status": 200
+    },
+    {
+      "path": "/orders",
+      "status": 200
+    },
+    {
+      "path": "/recovery",
+      "status": 200
+    }
+  ],
+  "authentication": {
+    "unauthenticatedOrders": 401,
+    "purchaser": {
+      "challenge": 200,
+      "verify": 200,
+      "role": "customer",
+      "chainId": 5042002
+    },
+    "ownedOrderCount": 11,
+    "operator": {
+      "challenge": 200,
+      "verify": 200,
+      "role": "operator",
+      "chainId": 5042002
+    },
+    "foreignOrder": 404,
+    "customerOperator": 403
+  },
+  "downloads": [
+    {
+      "status": 200,
+      "bytes": 37,
+      "sha256": "8758c5f05eb8c2c2782d1ceb958481e643fd7f55c7e63256b0618009239609e9",
+      "contentType": "text/plain; charset=utf-8",
+      "cacheControl": "private, no-store",
+      "historicalPurchase": true
+    }
+  ],
+  "operator": {
+    "serviceStatus": 200,
+    "salesPaused": null,
+    "health": {
+      "status": "passed",
+      "components": {
+        "validation": {
+          "status": "passed",
+          "passedAt": "2026-10-15T18:46:39.12172+00:00"
+        },
+        "parser": {
+          "status": "passed",
+          "passedAt": "2026-10-15T18:46:43.77298+00:00"
+        },
+        "storage": {
+          "status": "passed",
+          "passedAt": "2026-10-15T18:46:44.027079+00:00"
+        },
+        "payment": {
+          "status": "passed",
+          "passedAt": "2026-10-15T18:46:45.685303+00:00"
+        },
+        "capacity": {
+          "status": "passed",
+          "passedAt": "2026-10-15T18:46:46.794896+00:00"
+        },
+        "retrieval": {
+          "status": "passed",
+          "passedAt": "2026-10-15T18:46:50.597388+00:00"
+        }
+      },
+      "resultBytes": 45,
+      "synthetic": true
+    }
+  },
+  "financialActions": 0,
+  "status": "passed",
+  "publicBrowser": {
+    "status": "passed",
+    "title": "Mend \u00b7 Private orders",
+    "checkedAt": "2026-10-15T18:47:20.815Z",
+    "authenticatedDataHidden": true
+  }
+}

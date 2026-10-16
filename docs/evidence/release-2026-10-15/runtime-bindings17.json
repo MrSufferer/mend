@@ -1,0 +1,94 @@
+{
+  "sha": "96e05307dc6dcfa469eae69d1f95b043fdd42a6a",
+  "status": "passed",
+  "at": "2026-10-15T18:43:55.254Z",
+  "checks": [
+    {
+      "role": "conversion",
+      "credentialName": "WEB_CONVERSION_SECRET",
+      "path": "/",
+      "status": 400,
+      "expected": 400
+    },
+    {
+      "role": "conversion",
+      "credentialName": "WEB_CONVERSION_SECRET",
+      "path": "/",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "role": "conversion",
+      "credentialName": "WEB_CONVERSION_SECRET",
+      "path": "/operator",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "role": "conversion",
+      "credentialName": "WEB_OPERATOR_CONVERSION_SECRET",
+      "path": "/operator",
+      "status": 400,
+      "expected": 400
+    },
+    {
+      "role": "conversion",
+      "credentialName": "WEB_OPERATOR_CONVERSION_SECRET",
+      "path": "/operator",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "role": "conversion",
+      "credentialName": "WEB_OPERATOR_CONVERSION_SECRET",
+      "path": "/",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "role": "agent",
+      "credentialName": "WEB_OPERATOR_AGENT_SECRET",
+      "path": "/investigate",
+      "status": 400,
+      "expected": 400
+    },
+    {
+      "role": "agent",
+      "credentialName": "WEB_OPERATOR_AGENT_SECRET",
+      "path": "/investigate",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "role": "agent",
+      "credentialName": "WEB_OPERATOR_AGENT_SECRET",
+      "path": "/scheduled",
+      "status": 403,
+      "expected": 403,
+      "acceptanceNote": "Original private verifier allowed authentication/trigger-authority denial401 or403; observed403 is the expected trigger-authority denial for this endpoint."
+    },
+    {
+      "role": "registrar",
+      "credentialName": "WEB_OPERATOR_REGISTRAR_SECRET",
+      "path": "/operator",
+      "status": 503,
+      "expected": 503
+    },
+    {
+      "role": "registrar",
+      "credentialName": "WEB_OPERATOR_REGISTRAR_SECRET",
+      "path": "/operator",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "role": "registrar",
+      "credentialName": "WEB_OPERATOR_REGISTRAR_SECRET",
+      "path": "/capacity",
+      "status": 401,
+      "expected": 401
+    }
+  ],
+  "modelCallsRequested": 0,
+  "financialActions": 0
+}
