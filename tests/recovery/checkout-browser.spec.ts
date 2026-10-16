@@ -7,7 +7,9 @@ test.afterAll(async()=>{await h?.close();});
 test.beforeEach(async()=>{await h.reset();});
 test('browser sample purchase validates a real PDF before requesting payment and preserves its authorization on reload',async({page})=>{
  await wallet(page);await page.goto(h.origin);
+ const sampleResponse=page.waitForResponse(response=>new URL(response.url()).pathname==='/mend-sample.pdf');
  await page.getByRole('button',{name:'Use sample PDF',exact:true}).click();
+ expect((await sampleResponse).ok()).toBe(true);
  await expect(page.getByText('mend-sample.pdf',{exact:true})).toBeVisible();
  await page.getByLabel('I accept the disclosed purchase terms').check();
  await page.getByRole('button',{name:'Connect wallet',exact:true}).click();
