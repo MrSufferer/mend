@@ -15,7 +15,7 @@ async function authenticate(page:Page){
  await expect(page.getByText('Authenticated',{exact:true})).toBeVisible();
 }
 async function validatedSample(page:Page){
- await wallet(page);await page.goto(h.origin);await authenticate(page);
+ await wallet(page);await page.goto(h.origin+'/convert');await authenticate(page);
  await page.getByRole('button',{name:'Use sample PDF',exact:true}).click();
  await expect(page.getByText('mend-sample.pdf',{exact:true})).toBeVisible();
  await page.getByLabel('I accept the disclosed purchase terms').check();
@@ -30,7 +30,7 @@ async function signingUnavailable(page:Page){
  });
 }
 
-test('lost settled response replays one authorization and downloads the real sample without another job',async({page})=>{
+test('lost settled response replays one authorization and downloads the real sample without another job',async({page},testInfo)=>{
  await validatedSample(page);
  let original='';let orderId='';
  await page.route('**/api/orders/*/payment',async route=>{
@@ -51,7 +51,16 @@ test('lost settled response replays one authorization and downloads the real sam
  await page.getByRole('button',{name:'Check existing payment',exact:true}).click();
  await expect.poll(()=>replay).toBe(original);
  await expect(page.getByText('Payment confirmed',{exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Check existing payment',exact:true})).not.toBeVisible();
+ await expect(page.getByLabel('I accept the disclosed purchase terms')).toHaveCount(0);
+ await page.screenshot({path:testInfo.outputPath('payment-confirmed-desktop.png'),fullPage:true});
+ await page.getByRole('link',{name:'View order',exact:true}).click();
+ await expect(page).toHaveURL(new RegExp('/orders\\?order='+orderId+'$'));
  await expect(page.getByRole('button',{name:'Download text result',exact:true})).toBeVisible({timeout:30000});
+ await expect(page.getByRole('heading',{name:'Result available',exact:true})).toBeVisible();
+ await expect(page.getByText('Funds have no confirmed return receipt.',{exact:false})).not.toBeVisible();
+ await page.screenshot({path:testInfo.outputPath('result-ready-desktop.png'),fullPage:true});
+ await page.setViewportSize({width:375,height:812});await page.screenshot({path:testInfo.outputPath('result-ready-phone.png'),fullPage:true});
  const event=page.waitForEvent('download');await page.getByRole('button',{name:'Download text result',exact:true}).click();
  const download=await event;expect(await download.failure()).toBeNull();
  const text=await readFile((await download.path())!,'utf8');
@@ -64,12 +73,14 @@ test('lost settled response replays one authorization and downloads the real sam
  await page.reload();await authenticate(page);
  await expect(page.getByText(orderId,{exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Review payment in wallet',exact:true})).toHaveCount(0);
+ await page.getByRole('link',{name:'Convert',exact:true}).click();
+ await page.getByText('Recover a purchase on another device',{exact:true}).click();
  await expect(page.getByText('Returning on another device or after clearing storage?',{exact:false})).toBeVisible();
 });
 
 test('unavailable durable storage blocks upload and leaves no accepted order or payment',async({page})=>{
  await wallet(page);await page.addInitScript(()=>{indexedDB.open=()=>{throw new Error('Synthetic storage unavailable');};});
- await page.goto(h.origin);await authenticate(page);
+ await page.goto(h.origin+'/convert');await authenticate(page);
  await page.getByRole('button',{name:'Use sample PDF',exact:true}).click();
  await expect(page.getByText('mend-sample.pdf',{exact:true})).toBeVisible();
  await page.getByLabel('I accept the disclosed purchase terms').check();
@@ -103,7 +114,7 @@ test('unsupported wallet signing preserves an unsigned validated purchase and se
 
 
 test('chosen files validate real content, recover from rejection, and support blank pages at phone width',async({page},testInfo)=>{
- await wallet(page);await page.setViewportSize({width:375,height:812});await page.goto(h.origin+'/orders');await authenticate(page);
+ await wallet(page);await page.setViewportSize({width:375,height:812});await page.goto(h.origin+'/convert');await authenticate(page);
  await page.getByLabel('Choose a PDF',{exact:true}).setInputFiles({name:'invalid.pdf',mimeType:'application/pdf',buffer:Buffer.from('not a real PDF')});
  await page.getByLabel('I accept the disclosed purchase terms').check();
  await page.getByRole('button',{name:'Upload and validate PDF',exact:true}).click();
@@ -120,7 +131,7 @@ test('chosen files validate real content, recover from rejection, and support bl
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  expect((await h.state()).charges).toHaveLength(0);
  await page.screenshot({path:testInfo.outputPath('checkout-phone.png'),fullPage:true});
- await page.setViewportSize({width:1440,height:1000});await page.goto(h.origin);await authenticate(page);
+ await page.setViewportSize({width:1440,height:1000});await page.goto(h.origin+'/convert');await authenticate(page);
  await page.getByLabel('Saved purchases').selectOption({label:'chosen-text-and-blank.pdf · validated'});
  await expect(page.getByRole('heading',{name:'Your PDF is validated',exact:true})).toBeVisible();
  await page.screenshot({path:testInfo.outputPath('checkout-desktop.png'),fullPage:true});
@@ -130,8 +141,8 @@ test('chosen files validate real content, recover from rejection, and support bl
 test('a stale second tab reuses the first tab authorization without another wallet signature',async({page,context})=>{
  // Connect both synthetic wallets before creating the shared SIWE session. Connecting
  // a previously disconnected tab deliberately revokes any existing session.
- await wallet(page);await page.goto(h.origin);
- const other=await context.newPage();await wallet(other);await other.goto(h.origin);
+ await wallet(page);await page.goto(h.origin+'/convert');
+ const other=await context.newPage();await wallet(other);await other.goto(h.origin+'/convert');
  const disconnectedSessionRevoked=other.waitForResponse(response=>new URL(response.url()).pathname==='/api/auth/logout'&&response.ok());
  await other.getByRole('button',{name:'Connect wallet',exact:true}).click();
  await disconnectedSessionRevoked;
