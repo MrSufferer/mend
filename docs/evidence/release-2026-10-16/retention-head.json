@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-16T03:35:48.936Z",
+  "sourceSha": "609c5bdc20ffe0b1cf47735f1cf3d2318bacddae",
+  "operation": "HEAD only; independent storage absence checks of all due inventory keys",
+  "counts": {
+    "staging": 201
+  },
+  "absent": 201,
+  "present": 0,
+  "unknown": 0,
+  "total": 201,
+  "writeOperations": 0,
+  "status": "PASS"
+}

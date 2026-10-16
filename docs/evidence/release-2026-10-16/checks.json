@@ -1,0 +1,89 @@
+{
+  "sourceSha": "609c5bdc20ffe0b1cf47735f1cf3d2318bacddae",
+  "runtimeSha": "96e05307dc6dcfa469eae69d1f95b043fdd42a6a",
+  "dateUTC": "2026-10-16",
+  "node": "24.10.0",
+  "npm": "11.6.1",
+  "lifecycle": {
+    "command": "RECOVERY_ENV_DIR=/absolute/private/test-env npm run test:recovery",
+    "status": "PASS",
+    "passed": 28,
+    "failed": 0,
+    "skipped": 0,
+    "retries": 0,
+    "workers": 1,
+    "duration": "6.7m",
+    "externalEffects": "controlled chain, facilitator, model and object storage; real SQL/HTTP/parser/processes/SDK/SIWE",
+    "tests": [
+      "tests/recovery/browser.spec.ts:35:5 \u203a narrow keyboard flow shows durable uncertainty and a customer-safe timeline after worker death",
+      "tests/recovery/browser.spec.ts:56:5 \u203a restored private result downloads from the keyboard and disappears on wallet switch",
+      "tests/recovery/browser.spec.ts:70:5 \u203a rejection, expired challenge and expired session offer fresh real-signature recovery",
+      "tests/recovery/browser.spec.ts:89:5 \u203a wallet switch during an in-flight restored result download prevents opening private bytes",
+      "tests/recovery/health.spec.ts:21:5 \u203a lost authenticated health retrieval survives web and storage-fixture death without inventing a pass",
+      "tests/recovery/health.spec.ts:39:5 \u203a a real conversion failure invalidates both health proofs across restarts and fences stale resume replay",
+      "tests/recovery/lifecycle.spec.ts:7:5 \u203a lost settlement response survives real web and fixture death without another charge",
+      "tests/recovery/lifecycle.spec.ts:25:5 \u203a an orphan-block payment receipt never becomes customer-visible paid state",
+      "tests/recovery/lifecycle.spec.ts:41:5 \u203a hard-killed parser remains unknown across stop requests and duplicate conversion deliveries",
+      "tests/recovery/lifecycle.spec.ts:53:5 \u203a hard kill after output PUT preserves unknown publication and never fabricates refund or delivery",
+      "tests/recovery/lifecycle.spec.ts:63:5 \u203a cooperatively stopped publication restores original private output after process restart",
+      "tests/recovery/lifecycle.spec.ts:75:5 \u203a cooperative SIGINT confirms whole execution stop while a hard kill cannot",
+      "tests/recovery/lifecycle.spec.ts:83:5 \u203a twelve real SDK dispatch claims survive worker death and never permit a thirteenth",
+      "tests/recovery/lifecycle.spec.ts:110:5 \u203a registrar death after signed bytes resumes the same operation and canonical entitlement once",
+      "tests/recovery/lifecycle.spec.ts:119:5 \u203a a signed unbroadcast refund remains aggregate debt until canonical repayment",
+      "tests/recovery/lifecycle.spec.ts:126:5 \u203a submitted unmined refunds retain aggregate debt and block competing overspend across restart",
+      "tests/recovery/lifecycle.spec.ts:145:5 \u203a refund inclusion survives worker and chain-fixture death, missing receipt stays unresolved, replay pays once",
+      "tests/recovery/lifecycle.spec.ts:159:5 \u203a concurrent real operator and model retry requests claim only the sole purchased generation",
+      "tests/recovery/lifecycle.spec.ts:169:5 \u203a retention worker death after actual DELETE keeps absence durable and unresolved obligation intact",
+      "tests/recovery/lifecycle.spec.ts:189:5 \u203a aggregate deficit permits affordable debt, persists blockers, and resumes deterministic repayment after refill",
+      "tests/recovery/lifecycle.spec.ts:205:5 \u203a publication-first recovery after the purchased deadline forbids a later entitlement fence",
+      "tests/recovery/lifecycle.spec.ts:216:5 \u203a entitlement-first disposition rejects stale conversion completion and repays once",
+      "tests/recovery/lifecycle.spec.ts:229:5 \u203a fresh UTC allowance observation replaces an exhausted prior-day snapshot after worker restart",
+      "tests/recovery/lifecycle.spec.ts:242:5 \u203a purchase policy survives later configuration and purchase pause while paid recovery continues",
+      "tests/recovery/web-aliases.spec.ts:9:5 \u203a web investigation alias rejects invented operator request before model dispatch and admits a current authenticated operator request",
+      "tests/recovery/web-aliases.spec.ts:22:5 \u203a web conversion alias delivers a paid PDF while operator alias retains durable dispatch authority",
+      "tests/recovery/web-aliases.spec.ts:33:5 \u203a web registrar alias still derives entitlement from a current operator request",
+      "tests/recovery/web-aliases.spec.ts:47:5 \u203a two canonical fixture failures allow agent-requested pause below deterministic threshold"
+    ],
+    "logSha256": "e660d48a57090381bfb1fa701e251e34fd255e538588147cee17f773a082693f"
+  },
+  "deployedBrowser": {
+    "command": "TEST_BASE_URL=https://mend-3hvszzylk-gadillacers-projects.vercel.app npx playwright test tests/wallet-browser.spec.ts --grep 'connection and actual|rejected signatures|wrong network|switching account during|narrow layouts|wallet prompt returning'",
+    "status": "PASS",
+    "passed": 6,
+    "failed": 0,
+    "durationSeconds": 23.8,
+    "tests": [
+      "tests/wallet-browser.spec.ts:35:5 \u203a connection and actual EOA sign-in are separate; customer cannot enter operator desk (6.6s)",
+      "tests/wallet-browser.spec.ts:69:5 \u203a rejected signatures remain signed out and retry with a fresh real signature (3.7s)",
+      "tests/wallet-browser.spec.ts:74:5 \u203a wrong network blocks sign-in; switching to Arc permits a real signature (3.1s)",
+      "tests/wallet-browser.spec.ts:91:5 \u203a switching account during an open signature cannot restore the previous identity (3.8s)",
+      "tests/wallet-browser.spec.ts:105:5 \u203a narrow layouts and keyboard sign-in remain usable without horizontal overflow (3.4s)",
+      "tests/wallet-browser.spec.ts:130:5 \u203a a wallet prompt returning focus does not cancel the current account signature (2.5s)"
+    ],
+    "logSha256": "2b5449815959fe494633052b2f6d09e73c1af4e20594405878db5786d526caff"
+  },
+  "typecheck": {
+    "command": "npm run typecheck",
+    "status": "PASS",
+    "exitCode": 0
+  },
+  "parallelReviewerChecks": {
+    "node": {
+      "command": "node --test tests/deployment-cli.test.mjs tests/deployment-completion.test.mjs tests/web-service-aliases.test.mjs",
+      "status": "PASS",
+      "passed": 20,
+      "failed": 0,
+      "skipped": 0
+    },
+    "build": {
+      "command": "npm run build -- --webpack",
+      "status": "PASS",
+      "exitCode": 0
+    }
+  },
+  "newPaidPurchase": false,
+  "newFinancialActions": 0,
+  "newLiveModelCalls": 0,
+  "mainMerchantAvailabilityChanged": false,
+  "rawLogs": "Private; hashes identify local records, not substitutes for published counts/test names and reproduction commands."
+}

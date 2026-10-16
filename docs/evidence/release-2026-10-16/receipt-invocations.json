@@ -1,0 +1,57 @@
+{
+  "at": "2026-10-16T03:37:55.617515+00:00",
+  "sourceFilter": "function",
+  "serviceName": "neon-function/mendreceipts",
+  "logs": [
+    {
+      "timestamp": "2026-10-16T03:30:03Z",
+      "message": "invoke end",
+      "service_name": "neon-function/mendreceipts",
+      "scope_name": "neon.function.request"
+    },
+    {
+      "timestamp": "2026-10-16T03:30:01Z",
+      "message": "invoke begin",
+      "service_name": "neon-function/mendreceipts",
+      "scope_name": "neon.function.request"
+    },
+    {
+      "timestamp": "2026-10-16T03:15:02Z",
+      "message": "invoke end",
+      "service_name": "neon-function/mendreceipts",
+      "scope_name": "neon.function.request"
+    },
+    {
+      "timestamp": "2026-10-16T03:15:01Z",
+      "message": "invoke begin",
+      "service_name": "neon-function/mendreceipts",
+      "scope_name": "neon.function.request"
+    },
+    {
+      "timestamp": "2026-10-16T03:00:02Z",
+      "message": "invoke end",
+      "service_name": "neon-function/mendreceipts",
+      "scope_name": "neon.function.request"
+    },
+    {
+      "timestamp": "2026-10-16T03:00:01Z",
+      "message": "invoke begin",
+      "service_name": "neon-function/mendreceipts",
+      "scope_name": "neon.function.request"
+    },
+    {
+      "timestamp": "2026-10-16T02:45:02Z",
+      "message": "invoke end",
+      "service_name": "neon-function/mendreceipts",
+      "scope_name": "neon.function.request"
+    },
+    {
+      "timestamp": "2026-10-16T02:45:01Z",
+      "message": "invoke begin",
+      "service_name": "neon-function/mendreceipts",
+      "scope_name": "neon.function.request"
+    }
+  ],
+  "interpretation": "invoke begin/end proves function invocation; absent scheduled_at app logging cannot independently attribute request to ordinary schedule or prove business effects",
+  "isTruncated": false
+}
